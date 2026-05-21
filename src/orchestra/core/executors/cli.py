@@ -34,9 +34,14 @@ def _default_run(
 ) -> CmdResult:
     full_env = {**os.environ, **env} if env else None
     resolved = [_resolve_exe(argv[0]), *argv[1:]]
+    # encoding utf-8 explícito: en Windows el modo texto usa cp1252 por defecto y
+    # el prompt lleva caracteres no-ASCII (flechas "→" de los contratos/rules) que
+    # cp1252 no puede codificar al mandarlos por stdin. errors="replace" en la salida
+    # evita petar si el CLI emite bytes raros.
     proc = subprocess.run(
         resolved, cwd=str(cwd), input=stdin_text,
-        capture_output=True, text=True, env=full_env,
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+        env=full_env,
     )
     return CmdResult(returncode=proc.returncode, stdout=(proc.stdout or "") + (proc.stderr or ""))
 
@@ -46,11 +51,11 @@ def _default_git_changed(repo_root: Path) -> list[str]:
     try:
         tracked = subprocess.run(
             [git, "diff", "--name-only"], cwd=str(repo_root),
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         ).stdout.splitlines()
         untracked = subprocess.run(
             [git, "ls-files", "--others", "--exclude-standard"], cwd=str(repo_root),
-            capture_output=True, text=True,
+            capture_output=True, text=True, encoding="utf-8", errors="replace",
         ).stdout.splitlines()
         return [p for p in (*tracked, *untracked) if p.strip()]
     except (OSError, subprocess.SubprocessError):

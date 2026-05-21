@@ -11,7 +11,9 @@
 [roles.planner]
 prompt = "src/orchestra/roles/planner.md"
 default_provider = "claude"
-default_model = "claude-opus-4-7"
+# Ideal: claude-opus-4-7 (razonamiento). Puesto en sonnet para pruebas hasta
+# verificar el ID real de Opus en la cuenta. Cámbialo cuando lo confirmes.
+default_model = "claude-sonnet-4-6"
 tools = ["read", "grep", "glob", "bash_safe"]   # solo lee + escribe progress/, no edita código
 
 [roles.builder]
@@ -23,5 +25,6 @@ tools = ["read", "edit", "write", "bash", "grep", "glob"]
 [roles.tester]
 prompt = "src/orchestra/roles/tester.md"
 default_provider = "claude"
-default_model = "claude-opus-4-7"
+# Ideal: claude-opus-4-7. En sonnet para pruebas (ver nota en planner).
+default_model = "claude-sonnet-4-6"
 tools = ["read", "grep", "glob", "bash_test"]   # read-only + runners de test
