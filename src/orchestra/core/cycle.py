@@ -36,6 +36,8 @@ class CycleStep:
     provider: str
     model: str
     artifact: Path
+    cost_usd: float | None = None
+    elapsed_s: float = 0.0
 
 
 @dataclass(frozen=True)
@@ -45,6 +47,16 @@ class CycleResult:
     iterations: int                 # nº de vueltas builder→tester
     stopped_reason: str             # "pass" | "max_iters"
     history: list[CycleStep] = field(default_factory=list)
+
+    @property
+    def total_cost_usd(self) -> float | None:
+        """Suma del coste de los steps con coste conocido. None si ninguno lo tiene."""
+        costs = [s.cost_usd for s in self.history if s.cost_usd is not None]
+        return round(sum(costs), 6) if costs else None
+
+    @property
+    def total_elapsed_s(self) -> float:
+        return round(sum(s.elapsed_s for s in self.history), 1)
 
 
 def run_cycle(

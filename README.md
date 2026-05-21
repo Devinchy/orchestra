@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–12 completados
+## Estado: días 1–13 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **137 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **144 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -228,13 +228,16 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 - ✅ **2 rules portadas**: `60-git-pr` (siempre) y `30-python-playwright` (**condicional al stack** — solo si el repo target tiene `pyproject.toml`/`requirements.txt`). Quedan las 7 rules de dev-config cubiertas salvo `40-session-log`, que no aplica (era de los hooks de Claude Code). **+2 tests.**
 - ✅ **`MODEL_POLICY.md`** — la política como **documento del porqué + proceso de excepción**, que apunta a `config/` (verdad ejecutable) y a `orchestra config show` (estado vigente). No duplica tablas que se desincronizarían: en orchestra la política **se enforcea sola** (gate PII); el doc solo explica intención y cómo cambiarla.
 
-> Pendiente de paridad: las skills de flujo interactivo (brainstorming, worktrees…) no aplican al ciclo orquestado; el resto (MCPs, CI, GGA, templates, CLAUDE.md) se traerá vía un futuro `orchestra deploy` que las despliega al repo target. Ver el inventario de paridad.
+**Día 13 — `orchestra init`:**
+- ✅ `orchestra init [path]` prepara un repo para orquestar ciclos: crea `progress/`, `context/{active-phase,active-task}.md`, `PHASE_PLAN.md`, `orchestra.toml` (con el comando de tests **autodetectado** — pytest/npm/go), y añade `progress/` al `.gitignore`. **Idempotente** (no sobrescribe). Reemplaza el montaje manual del repo demo. **+7 tests** (`core/scaffold.py` + CLI).
+
+> Decisión de alcance: la **mitad interactiva** de "deploy" (generar `.claude/` para Claude Code) **se descarta** — ataría orchestra a un CLI concreto, rompiendo el agnosticismo. El conocimiento del equipo se aplica donde importa (el ciclo orquestado, vía inyección por rol); lo interactivo se hace con los CLIs directamente.
 
 ## Lo que viene
 
 | Hito | Entrega |
 |---|---|
-| **Engram** | Instalar el binario + cablear el MCP para memoria persistente cross-model. |
+| **Engram** (en Linux) | Binario standalone `engram mcp` (nativo Linux/WSL) + protocolo + builder por CLI nativo. Se hará al clonar en Fedora. |
 | `config set` | Edición de config preservando comentarios (requiere `tomlkit`). |
 | **Verificación real** del resto | codex/aider/deepseek/qwen/gemini contra sus CLIs y keys (claude ya verificado end-to-end). |
 

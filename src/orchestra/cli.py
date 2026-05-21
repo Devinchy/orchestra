@@ -16,6 +16,7 @@ import click
 from orchestra.core import config as cfg
 from orchestra.core import cycle as cycle_core
 from orchestra.core import runner
+from orchestra.core import scaffold
 
 # Raíz de la instalación de orchestra (src/orchestra/cli.py → parents[2]).
 ORCHESTRA_ROOT = Path(__file__).resolve().parents[2]
@@ -28,6 +29,23 @@ DEFAULT_MASTER_KEY = "sk-local-orchestra"
 @click.group()
 def main() -> None:
     """orchestra — orquestador multi-modelo del ciclo TDD (planner/builder/tester)."""
+
+
+@main.command(name="init")
+@click.argument("path", default=".")
+@click.option("--test-command", default=None,
+              help="Comando de tests del repo (si no, se autodetecta).")
+def init_cmd(path: str, test_command: str | None) -> None:
+    """Prepara un repo para orchestra (progress/, context/, orchestra.toml, PHASE_PLAN)."""
+    res = scaffold.init_repo(Path(path), test_command=test_command)
+    for c in res.created:
+        click.echo(f"  [creado] {c}")
+    for s in res.skipped:
+        click.echo(f"  [existe] {s}")
+    if not res.created:
+        click.echo("Nada que crear — el repo ya estaba preparado.")
+    else:
+        click.echo("\nListo. Genera una fase en PHASE_PLAN.md y corre: orchestra cycle --slug <slug>")
 
 
 def _fmt_tokens(usage: dict) -> str:

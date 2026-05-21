@@ -135,6 +135,17 @@ def test_cycle_exit_1_si_no_pasa(monkeypatch):
     assert res.exit_code == 1
 
 
+# ---------- init ----------
+
+def test_init_prepara_un_repo(tmp_path):
+    res = CliRunner().invoke(cli.main, ["init", str(tmp_path)])
+    assert res.exit_code == 0, res.output
+    assert (tmp_path / "orchestra.toml").is_file()
+    assert (tmp_path / "PHASE_PLAN.md").is_file()
+    assert (tmp_path / "progress").is_dir()
+    assert "creado" in res.output
+
+
 # ---------- config show ----------
 
 def test_config_show_lista_la_config_real():
