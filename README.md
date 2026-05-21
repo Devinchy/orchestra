@@ -226,6 +226,7 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 - ✅ 4 skills propias de orchestra (concisas, agnósticas, sin maquinaria de Claude Code): `security-review`, `rgpd-review` → **tester**; `self-critique` → **planner**; `systematic-debugging` → **builder`.
 - Es el primer trozo de **paridad con dev-config traído "de forma correcta"**: el *conocimiento* (texto) se inyecta a cualquier modelo; el *mecanismo* de auto-discovery de Claude Code no se reinventa.
 - ✅ **2 rules portadas**: `60-git-pr` (siempre) y `30-python-playwright` (**condicional al stack** — solo si el repo target tiene `pyproject.toml`/`requirements.txt`). Quedan las 7 rules de dev-config cubiertas salvo `40-session-log`, que no aplica (era de los hooks de Claude Code). **+2 tests.**
+- ✅ **`MODEL_POLICY.md`** — la política como **documento del porqué + proceso de excepción**, que apunta a `config/` (verdad ejecutable) y a `orchestra config show` (estado vigente). No duplica tablas que se desincronizarían: en orchestra la política **se enforcea sola** (gate PII); el doc solo explica intención y cómo cambiarla.
 
 > Pendiente de paridad: las skills de flujo interactivo (brainstorming, worktrees…) no aplican al ciclo orquestado; el resto (MCPs, CI, GGA, templates, CLAUDE.md) se traerá vía un futuro `orchestra deploy` que las despliega al repo target. Ver el inventario de paridad.
 
