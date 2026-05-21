@@ -68,37 +68,49 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: día 1 completado
+## Estado: días 1–2 completados
 
-Construido **test-first** (la propia filosofía que orquesta):
+Construido **test-first** (la propia filosofía que orquesta). **44 tests verdes.**
 
+**Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
 - ✅ Config: `providers.toml` (5 proveedores), `roles.toml` (3 roles), `routing.toml`.
 - ✅ `core/pii.py` — detección de paths sensibles. **9 tests.**
-- ✅ `core/config.py` — carga + validación TOML con stdlib (tomllib + dataclasses).
-  Falla rápido y claro ante config incoherente. **8 tests.**
+- ✅ `core/config.py` — carga + validación TOML (tomllib + dataclasses). **8 tests.**
 - ✅ `core/routing.py` — selección de modelo, gate PII, fallback. **13 tests.**
-- **30 tests verdes, sin dependencias externas** (solo pytest).
+
+**Día 2 — capa de invocación + contenido:**
+- ✅ `roles/{planner,builder,tester}.md` + `rules/{00,10,20,70}.md` propios de orchestra.
+- ✅ `litellm.yaml` — proxy con los 5 proveedores + MCP bridge de Engram.
+- ✅ `core/prompt_builder.py` — compone el prompt por rol (contrato + rules + artefactos del repo). **9 tests.**
+- ✅ `core/invoker.py` — llamada OpenAI-compatible al proxy (httpx). **5 tests** (con `MockTransport`, sin red).
 
 ### Cómo correr los tests
 
 ```bash
-# venv ya creado en .venv con pytest
-./.venv/Scripts/python.exe -m pytest        # Windows / Git Bash
+./.venv/Scripts/python.exe -m pytest        # Windows / Git Bash → 44 passed
 # o:  just test
 ```
 
-## Lo que viene (días 2–5)
+### Cómo levantar el proxy (cuando tengas las API keys)
+
+```bash
+cp .env.example .env        # rellena ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.
+just proxy                  # litellm --config litellm.yaml --port 4000
+# verifica:  curl http://localhost:4000/health
+```
+
+## Lo que viene (días 3–5)
 
 | Día | Entrega |
 |---|---|
-| 2 | `litellm.yaml` (model_list de los 5 + MCP bridge engram). `core/prompt_builder.py` (inyecta rol + rules + skills + task files). `core/invoker.py` (httpx → proxy). Tests con mock del proxy. |
-| 3 | `orchestra run <role> --slug X` end-to-end. Captura de transcript. Hand-off file-based entre roles (`progress/`, `context/`). Roles propios en `src/orchestra/roles/*.md`. |
-| 4 | `orchestra cycle` (los 3 encadenados con routing del tester). DeepSeek + Qwen añadidos. |
-| 5 | Gemini, fallback en runtime, pulido del CLI. |
+| 3 | `core/runner.py` + `orchestra run <role> --slug X` end-to-end (resuelve modelo → gate PII → prompt → invoca proxy → captura transcript). Hand-off file-based entre roles. |
+| 4 | `orchestra cycle` (los 3 encadenados, leyendo el "Volver a" del tester). Verificación con DeepSeek + Qwen reales. |
+| 5 | Gemini, fallback en runtime por caída de proveedor, pulido del CLI (`status`, `config set`). |
 
-> Nota: `roles.toml` ya referencia `src/orchestra/roles/{planner,builder,tester}.md`
-> — esos contratos se escriben en el día 3, cuando `prompt_builder` los consume.
+> Pieza que falta para el end-to-end: el **runner** (día 3) que une lo que ya existe
+> — `routing` decide el modelo, `prompt_builder` arma el prompt, `invoker` llama al
+> proxy. Solo falta el pegamento + captura de `progress/transcript_<slug>.md`.
 
 ## Requisitos
 
