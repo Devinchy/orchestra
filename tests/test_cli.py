@@ -117,3 +117,16 @@ def test_cycle_exit_1_si_no_pasa(monkeypatch):
     )
     res = CliRunner().invoke(cli.main, ["cycle", "--slug", "demo"])
     assert res.exit_code == 1
+
+
+# ---------- config show ----------
+
+def test_config_show_lista_la_config_real():
+    res = CliRunner().invoke(cli.main, ["config", "show"])
+    assert res.exit_code == 0, res.output
+    assert "PROVEEDORES" in res.output
+    assert "claude" in res.output
+    assert "GATE PII" in res.output
+    assert "BUILDER por proveedor" in res.output
+    # los backends del builder aparecen
+    assert "aider" in res.output or "via proxy" in res.output

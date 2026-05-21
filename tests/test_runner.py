@@ -16,6 +16,7 @@ from orchestra.core.executors.base import ExecutionResult
 from orchestra.core.executors.cli import CliExecutor
 from orchestra.core.executors.proxy import ProxyExecutor
 from orchestra.core.executors.test_runner import TestRun
+from orchestra.core.invoker import InvocationError
 
 ORCHESTRA_ROOT = Path(__file__).resolve().parents[1]
 REPO_CONFIG = ORCHESTRA_ROOT / "config"
@@ -172,3 +173,79 @@ def test_select_executor_builder_sin_backend_cae_a_proxy():
         proxy_url="http://x", api_key="k", invoke_fn=lambda *a, **k: None,
     )
     assert isinstance(ex, ProxyExecutor)
+
+
+# ---------- fallback en runtime ----------
+
+def test_provider_chain_sigue_la_cadena_sin_ciclos():
+    c = _config()
+    assert runner._provider_chain(c, "codex") == ["codex", "claude"]
+    # deepseek -> qwen -> claude (claude no tiene entrada de fallback → para)
+    assert runner._provider_chain(c, "deepseek") == ["deepseek", "qwen", "claude"]
+    assert runner._provider_chain(c, "claude") == ["claude"]
+
+
+def _factory_that_fails(failing: set[str], record: list):
+    """executor_factory: lanza InvocationError para los providers en `failing`."""
+    def factory(provider):
+        class _E:
+            def execute(self, prompt, *, model, repo_root, role, slug):
+                record.append(provider)
+                if provider in failing:
+                    raise InvocationError(f"{provider} caído (rate limit)")
+                return ExecutionResult(content=f"ok desde {provider}", success=True)
+        return _E()
+    return factory
+
+
+def test_run_role_hace_fallback_si_el_provider_cae(tmp_path):
+    repo = _make_repo(tmp_path, task_body="# Tarea\n\n`src/utils/math.py`. CA-1.")
+    attempts: list = []
+    res = runner.run_role(
+        _config(), "builder", "demo",
+        repo_root=repo, orchestra_root=ORCHESTRA_ROOT,
+        proxy_url="http://x", api_key="k",
+        provider_override="codex",
+        executor_factory=_factory_that_fails({"codex"}, attempts),
+    )
+    assert attempts == ["codex", "claude"]      # codex cayó → fallback a claude
+    assert res.provider == "claude"
+    assert "ok desde claude" in res.content
+
+
+def test_run_role_error_si_toda_la_cadena_cae(tmp_path):
+    repo = _make_repo(tmp_path, task_body="# Tarea\n\n`src/utils/math.py`. CA-1.")
+    attempts: list = []
+    with pytest.raises(runner.RunnerError, match="cadena"):
+        runner.run_role(
+            _config(), "builder", "demo",
+            repo_root=repo, orchestra_root=ORCHESTRA_ROOT,
+            proxy_url="http://x", api_key="k",
+            provider_override="codex",
+            executor_factory=_factory_that_fails({"codex", "claude"}, attempts),
+        )
+    assert attempts == ["codex", "claude"]
+
+
+def test_run_role_success_false_no_dispara_fallback(tmp_path):
+    # Un builder con tests rojos (success=False) NO es fallo de infra → no hay fallback.
+    repo = _make_repo(tmp_path, task_body="# Tarea\n\n`src/utils/math.py`. CA-1.")
+    attempts: list = []
+
+    def factory(provider):
+        class _E:
+            def execute(self, prompt, *, model, repo_root, role, slug):
+                attempts.append(provider)
+                return ExecutionResult(content="2 passed, 1 failed", success=False)
+        return _E()
+
+    res = runner.run_role(
+        _config(), "builder", "demo",
+        repo_root=repo, orchestra_root=ORCHESTRA_ROOT,
+        proxy_url="http://x", api_key="k",
+        provider_override="codex",
+        executor_factory=factory,
+    )
+    assert attempts == ["codex"]                # un solo intento, sin fallback
+    assert res.provider == "codex"
+    assert res.content == "2 passed, 1 failed"

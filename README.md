@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–7 completados
+## Estado: días 1–8 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **106 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **111 tests verdes.**
 
 **Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
@@ -161,6 +161,22 @@ Builder por proveedor (verificado):
 | codex | `codex exec ...` | key propia (OPENAI_API_KEY) |
 | deepseek / qwen / gemini | `aider --model openai/{model} ...` | proxy litellm (OPENAI_API_BASE) |
 
+**Día 8 — endurecimiento del runtime:**
+- ✅ **Fallback automático** por caída/rate-limit: si un proveedor lanza un error
+  transitorio (proxy caído, status≠2xx, CLI no encontrado), el runner reintenta con
+  el siguiente de la cadena (`routing.fallback`), **re-aplicando el gate PII** por
+  proveedor. Un `success=False` (tests rojos) NO dispara fallback — eso es un FAIL
+  normal que evalúa el tester. **+4 tests.**
+- ✅ `orchestra config show` — imprime la config resuelta (proveedores+DPA, roles,
+  gate PII, backends del builder). **+1 test.**
+
+Demostrado: con `provider=deepseek` y deepseek devolviendo 503, orchestra reintenta
+solo y termina en `qwen` (cadena `deepseek → qwen → claude`). El gate PII se re-evalúa
+en cada salto, así que un fallback nunca lleva PII a un proveedor sin DPA.
+
+> `config set` se difiere: editar TOML preservando comentarios necesita `tomlkit`
+> (no es dependencia aún). De momento se edita `config/*.toml` a mano.
+
 ### Cómo correr los tests
 
 ```bash
@@ -176,17 +192,18 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 # verifica:  curl http://localhost:4000/health
 ```
 
-## Lo que viene (día 8+)
+## Lo que viene
 
 | Hito | Entrega |
 |---|---|
-| 8 | Fallback en runtime por caída/rate-limit (`next_fallback` ya existe, falta cablearlo en el invoker/CliExecutor con reintento). Pulido del CLI (`config show/set`). |
-| — | **Verificación real**: levantar el proxy con keys reales y correr un `orchestra cycle` end-to-end con claude/codex/aider instalados (fuera del alcance de este entorno). |
+| **Verificación real** | Levantar el proxy con keys reales y correr un `orchestra cycle` end-to-end con claude/codex/aider instalados. Es el siguiente paso natural — fuera del alcance de este entorno (sin CLIs ni keys). |
+| `config set` | Edición de config preservando comentarios (requiere `tomlkit`). |
+| Pulido | Logging estructurado, métricas de coste por proveedor, `--dry-run`. |
 
-> El sistema completo funciona end-to-end: 3 roles, rotación de modelos por rol entre
-> los **5 proveedores**, gate PII enforced, routing del veredicto, y **ejecución real
-> delegada a CLIs agénticos** para el builder. Lo que falta es endurecer el runtime
-> (fallback automático) y la verificación contra proveedores reales.
+> El sistema está **funcionalmente completo**: 3 roles, rotación de modelos por rol
+> entre los **5 proveedores**, gate PII enforced (con re-evaluación en cada fallback),
+> routing del veredicto del tester, ejecución real delegada a CLIs agénticos, y
+> fallback automático por caída de proveedor. Todo construido test-first.
 
 ## Requisitos
 

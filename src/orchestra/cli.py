@@ -121,5 +121,38 @@ def status() -> None:
         click.echo("ninguna tarea activa — invoca el planner para generar una.")
 
 
+@main.group()
+def config() -> None:
+    """Inspecciona la configuración de orchestra."""
+
+
+@config.command(name="show")
+def config_show() -> None:
+    """Imprime la config resuelta: proveedores, roles, gate PII, backends del builder."""
+    try:
+        c = cfg.load_config(CONFIG_DIR)
+    except Exception as e:  # noqa: BLE001
+        raise click.ClickException(str(e)) from e
+
+    click.echo("PROVEEDORES (modelo default · DPA):")
+    for name, p in c.providers.items():
+        dpa = "sí" if p.dpa_signed is True else (
+            "self-hosted" if p.dpa_signed == "self_hosted" else "NO")
+        click.echo(f"  {name:9} {p.default_model:18} dpa={dpa}")
+
+    click.echo("\nROLES (provider/model por defecto):")
+    for name, r in c.roles.items():
+        click.echo(f"  {name:8} {r.default_provider}/{r.default_model}")
+
+    click.echo(f"\nGATE PII: mode={c.routing.pii_gate.mode} "
+               f"· fallback={c.routing.pii_gate.strict_fallback_provider}"
+               f"/{c.routing.pii_gate.strict_fallback_model}")
+
+    click.echo("\nBUILDER por proveedor (backend de ejecución):")
+    for prov, backend in c.executors.builder_backend.items():
+        via = " (via proxy)" if c.executors.backends[backend].via_proxy else ""
+        click.echo(f"  {prov:9} -> {backend}{via}")
+
+
 if __name__ == "__main__":
     main()

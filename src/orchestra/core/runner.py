@@ -26,6 +26,15 @@ from orchestra.core.executors.proxy import ProxyExecutor
 from orchestra.core.executors import test_runner
 
 InvokeFn = Callable[..., _invoker.InvocationResult]
+ExecutorFactory = Callable[[str], Executor]
+
+# Errores que cuentan como caída transitoria de infraestructura (→ disparan fallback):
+# proxy caído / status != 2xx (InvocationError), CLI no encontrado (OSError/FileNotFound).
+_TRANSIENT_ERRORS = (_invoker.InvocationError, OSError)
+
+
+class RunnerError(RuntimeError):
+    """No se pudo ejecutar el rol: toda la cadena de fallback de proveedores falló."""
 
 
 @dataclass(frozen=True)
@@ -67,6 +76,21 @@ def _select_executor(
     return ProxyExecutor(proxy_url=proxy_url, api_key=api_key, invoke_fn=invoke_fn)
 
 
+def _provider_chain(config: OrchestraConfig, provider: str, *, max_len: int = 4) -> list[str]:
+    """[provider, fallback1, fallback2, ...] siguiendo routing.fallback, sin ciclos."""
+    chain = [provider]
+    seen = {provider}
+    cur = provider
+    while len(chain) < max_len:
+        nxt = config.routing.fallback.get(cur)
+        if not nxt or nxt in seen:
+            break
+        chain.append(nxt)
+        seen.add(nxt)
+        cur = nxt
+    return chain
+
+
 def run_role(
     config: OrchestraConfig,
     role: str,
@@ -80,10 +104,11 @@ def run_role(
     model_override: str | None = None,
     invoke_fn: InvokeFn = _invoker.invoke,
     executor: Executor | None = None,
+    executor_factory: ExecutorFactory | None = None,
     run_tests_fn: Callable[..., test_runner.TestRun] = test_runner.run_tests,
     patterns: list[str] | None = None,
 ) -> RunResult:
-    """Ejecuta un rol sobre una tarea, end-to-end."""
+    """Ejecuta un rol sobre una tarea, end-to-end, con fallback por caída de proveedor."""
     repo_root = Path(repo_root)
 
     # 1. Modelo según rol + overrides.
@@ -101,16 +126,12 @@ def run_role(
         pii.task_touches_pii(task_path, patterns) if task_path.is_file() else (False, [])
     )
 
-    # 3. Gate PII (puede cambiar provider/model).
-    decision = routing.apply_pii_gate(config, provider, model, touches_pii=touches_pii)
-    provider, model = decision.provider, decision.model
-
-    # 4. Prompt del rol.
+    # 3. Prompt del rol.
     prompt = prompt_builder.build_prompt(
         config, role, slug, repo_root=repo_root, orchestra_root=orchestra_root
     )
 
-    # 5. El tester re-ejecuta los tests reales y los mete en su contexto.
+    # 4. El tester re-ejecuta los tests reales y los mete en su contexto.
     if role == "tester":
         run = run_tests_fn(repo_root)
         if run.command is not None:
@@ -120,23 +141,46 @@ def run_role(
                 f"éxito: {run.success}\n\n{run.output}\n"
             )
 
-    # 6. Executor (auto-seleccionado o inyectado).
-    if executor is None:
-        executor = _select_executor(
-            config, role, provider,
-            proxy_url=proxy_url, api_key=api_key, invoke_fn=invoke_fn,
+    # 5. Determina la cadena de ejecución y la fábrica de executors.
+    #    Con un executor concreto inyectado, NO hay fallback (un intento).
+    if executor is not None:
+        chain = [provider]
+        make_executor: ExecutorFactory = lambda _prov: executor  # noqa: E731
+    else:
+        chain = _provider_chain(config, provider)
+        make_executor = executor_factory or (
+            lambda prov: _select_executor(
+                config, role, prov,
+                proxy_url=proxy_url, api_key=api_key, invoke_fn=invoke_fn,
+            )
         )
-    result = executor.execute(
-        prompt, model=model, repo_root=repo_root, role=role, slug=slug
-    )
+
+    # 6. Intenta la cadena: gate PII por provider, ejecuta, fallback si cae (transitorio).
+    errors: list[str] = []
+    for i, prov in enumerate(chain):
+        model_p = model if i == 0 else config.providers[prov].default_model
+        decision = routing.apply_pii_gate(config, prov, model_p, touches_pii=touches_pii)
+        eff_provider, eff_model = decision.provider, decision.model
+        try:
+            result = make_executor(eff_provider).execute(
+                prompt, model=eff_model, repo_root=repo_root, role=role, slug=slug
+            )
+        except _TRANSIENT_ERRORS as e:
+            errors.append(f"{eff_provider}: {e}")
+            continue
+        break
+    else:
+        raise RunnerError(
+            f"toda la cadena de fallback falló para el rol '{role}': " + " | ".join(errors)
+        )
 
     # 7. Captura de transcript.
-    tpath = transcript.append_transcript(repo_root, slug, role, provider, result.content)
+    tpath = transcript.append_transcript(repo_root, slug, role, eff_provider, result.content)
 
     return RunResult(
         role=role,
-        provider=provider,
-        model=model,
+        provider=eff_provider,
+        model=eff_model,
         gate_action=decision.action,
         gate_reason=decision.reason,
         pii_paths=pii_paths,
