@@ -1,8 +1,9 @@
 # orchestra — recetas de desarrollo. Requiere `just` (https://github.com/casey/just).
 # Si no tienes just, los comandos equivalentes están comentados bajo cada receta.
 
-# Python del venv local (Windows/Git Bash). En Linux/mac: .venv/bin/python
+# Python + binarios del venv local (Windows/Git Bash). En Linux/mac: .venv/bin/...
 py := ".venv/Scripts/python.exe"
+litellm := ".venv/Scripts/litellm.exe"
 
 # Lista las recetas disponibles
 default:
@@ -13,9 +14,11 @@ test:
     {{py}} -m pytest
 
 # Levanta el proxy litellm local (día 2+). Lee litellm.yaml.
-# equivalente: .venv/Scripts/python.exe -m litellm --config litellm.yaml --port 4000
+# PYTHONIOENCODING=utf-8 es OBLIGATORIO en Windows: el banner de litellm lleva
+# caracteres que la consola cp1252 no puede imprimir y aborta el arranque.
+# Carga primero tus keys: `set -a; source .env; set +a` (Git Bash).
 proxy:
-    {{py}} -m litellm --config litellm.yaml --port 4000
+    PYTHONIOENCODING=utf-8 PYTHONUTF8=1 {{litellm}} --config litellm.yaml --port 4000
 
 # Ejecuta un rol concreto sobre una tarea (día 3+)
 # uso: just run planner auth-jwt   |   just run builder auth-jwt
