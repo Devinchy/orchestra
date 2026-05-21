@@ -1,0 +1,38 @@
+[project]
+name = "orchestra"
+version = "0.1.0"
+description = "Orquestador multi-modelo para el ciclo TDD de 3 roles (planner/builder/tester) con rotación de frontier models vía un proxy LiteLLM local."
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    # Capa de modelos: LiteLLM corre como PROXY local (servicio aparte), no como
+    # librería importada. orchestra le habla por HTTP (OpenAI-compatible) con httpx.
+    "litellm[proxy]>=1.50",
+    "httpx>=0.27",
+    # CLI + salida.
+    "click>=8.1",
+    "rich>=13.0",
+]
+
+# NOTA día 1: el código de routing/pii/config NO importa ninguna de estas deps —
+# usa solo stdlib (tomllib, dataclasses, re). Las deps de arriba entran en escena
+# a partir del día 2 (invoker contra el proxy, CLI). Por eso los tests del día 1
+# corren con solo pytest instalado, sin resolver el árbol completo de litellm.
+
+[project.scripts]
+orchestra = "orchestra.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8.0"]
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/orchestra"]
+
+[tool.pytest.ini_options]
+pythonpath = ["src"]
+testpaths = ["tests"]
+addopts = "-ra"

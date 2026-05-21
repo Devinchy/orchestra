@@ -1,0 +1,50 @@
+# Proveedores disponibles para orchestra.
+#
+# orchestra habla SIEMPRE con el proxy litellm local — nunca directo con el
+# proveedor. Por eso aquí NO hay API keys (viven en .env, las consume el proxy).
+# El campo `proxy_models` lista los nombres de modelo tal como están declarados
+# en litellm.yaml (model_list). routing.py elige uno de esos.
+#
+# Campos:
+#   proxy_models   : modelos de este proveedor expuestos por el proxy.
+#   default_model  : el que usa un rol si no especifica otro.
+#   supports_mcp   : si el proveedor puede consumir tools MCP (Engram) vía el bridge.
+#   supports_tools : true | false | "limited" (tool-use por prompt, no nativo).
+#   dpa_signed     : true | false | "self_hosted".
+#                    Gobierna el gate PII (ver routing.toml). "self_hosted" = open
+#                    weights en máquina propia → permitido para PII por la política.
+
+[providers.claude]
+proxy_models = ["claude-opus-4-7", "claude-sonnet-4-6", "claude-haiku-4-5"]
+default_model = "claude-sonnet-4-6"
+supports_mcp = true
+supports_tools = true
+dpa_signed = true            # DPA Anthropic firmado
+
+[providers.codex]
+proxy_models = ["gpt-5-codex", "gpt-5"]
+default_model = "gpt-5-codex"
+supports_mcp = true
+supports_tools = true
+dpa_signed = false           # pendiente de firma con OpenAI
+
+[providers.deepseek]
+proxy_models = ["deepseek-coder", "deepseek-chat"]
+default_model = "deepseek-coder"
+supports_mcp = false
+supports_tools = true
+dpa_signed = false           # endpoint público, sin DPA
+
+[providers.qwen]
+proxy_models = ["qwen3-coder"]
+default_model = "qwen3-coder"
+supports_mcp = false
+supports_tools = "limited"   # tool-use por prompt engineering, no nativo
+dpa_signed = "self_hosted"   # Ollama local → open weights, permitido para PII
+
+[providers.gemini]
+proxy_models = ["gemini-2.5-pro", "gemini-2.5-flash"]
+default_model = "gemini-2.5-pro"
+supports_mcp = true
+supports_tools = true
+dpa_signed = false           # pendiente de DPA con Google

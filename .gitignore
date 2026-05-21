@@ -1,0 +1,27 @@
+# Entorno
+.venv/
+__pycache__/
+*.pyc
+.python-version
+
+# Secretos y config local
+.env
+.env.local
+config/routing.local.toml
+
+# Artefactos de trabajo: contienen prompts y output del modelo (posible PII).
+# Nunca al repo compartido — misma regla que dev-config.
+progress/
+
+# Estado del proxy litellm
+litellm.log
+*.litellm.db
+
+# Memoria local de Engram (si se monta)
+*.engram.db
+.engram/
+
+# SO / editor
+.DS_Store
+.idea/
+.vscode/

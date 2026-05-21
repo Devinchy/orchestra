@@ -1,0 +1,26 @@
+# Políticas de enrutado: gate PII y cadena de fallback.
+
+[pii_gate]
+# advisory : si la tarea toca PII y el proveedor elegido no tiene DPA, AVISA pero
+#            continúa (asume que el dev sabe lo que hace / DPA en trámite).
+# strict   : si la tarea toca PII y el proveedor no tiene DPA, REBOTA al fallback
+#            de abajo. Enforcement duro — úsalo mientras no haya DPAs firmados.
+mode = "strict"
+
+# Patrones de paths sensibles. Si vacío, routing.py usa DEFAULT_SENSITIVE_PATTERNS
+# (definidos en core/pii.py). Puedes apuntar a un fichero externo para divergir.
+sensitive_patterns_file = ""
+
+# A qué proveedor/modelo rebota el gate strict cuando detecta PII en un proveedor
+# sin DPA. Debe ser un proveedor con dpa_signed = true o "self_hosted".
+[pii_gate.strict_fallback]
+provider = "claude"
+model = "claude-sonnet-4-6"
+
+# Cadena de fallback por caída/rate-limit del proveedor primario (lo aplica el
+# invoker en runtime, día 2+). Clave = proveedor que falla, valor = siguiente a probar.
+[fallback]
+codex = "claude"
+deepseek = "qwen"
+gemini = "claude"
+qwen = "claude"

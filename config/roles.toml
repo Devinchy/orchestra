@@ -1,0 +1,27 @@
+# Los 3 roles fijos del ciclo TDD. Cada rol declara su prompt (contrato), el
+# proveedor+modelo por defecto, y las tools que tiene permitidas.
+#
+# El default es lo que corre si no pasas override por CLI:
+#   orchestra run builder --slug X                  -> usa el default de abajo
+#   orchestra run builder --slug X --provider codex -> override puntual
+#   orchestra cycle --slug X --builder codex        -> override en el ciclo
+#
+# Rotar modelos = cambiar `default_provider`/`default_model` aquí, o pasar overrides.
+
+[roles.planner]
+prompt = "src/orchestra/roles/planner.md"
+default_provider = "claude"
+default_model = "claude-opus-4-7"
+tools = ["read", "grep", "glob", "bash_safe"]   # solo lee + escribe progress/, no edita código
+
+[roles.builder]
+prompt = "src/orchestra/roles/builder.md"
+default_provider = "claude"
+default_model = "claude-sonnet-4-6"
+tools = ["read", "edit", "write", "bash", "grep", "glob"]
+
+[roles.tester]
+prompt = "src/orchestra/roles/tester.md"
+default_provider = "claude"
+default_model = "claude-opus-4-7"
+tools = ["read", "grep", "glob", "bash_test"]   # read-only + runners de test
