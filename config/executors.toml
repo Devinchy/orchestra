@@ -1,0 +1,29 @@
+# Cómo se EJECUTA cada rol que necesita tocar el repo.
+#
+# orchestra orquesta (routing + gate PII + prompt). La ejecución de herramientas
+# (editar archivos, correr tests) se delega a CLIs agénticos maduros, dirigida por
+# rol: solo el builder edita código. planner/tester razonan vía el proxy.
+#
+# Plantilla de comando: {model} se sustituye por el modelo resuelto; {prompt_file}
+# (si aparece) por la ruta a un archivo temporal con el prompt. Si no aparece
+# {prompt_file}, el prompt se envía por stdin.
+
+[backends.claude_code]
+command = "claude -p --model {model} --permission-mode acceptEdits"
+
+[backends.codex_cli]
+command = "codex exec -m {model} --full-auto"
+
+# Día 7: aider cubre deepseek/qwen/gemini para el rol builder.
+# [backends.aider]
+# command = "aider --model litellm_proxy/{model} --yes --message-file {prompt_file}"
+
+# Qué backend usa el BUILDER según el proveedor que resuelva el routing.
+# Si un proveedor no está aquí, el builder cae a ejecución documental (proxy) —
+# útil mientras no haya CLI agéntico para ese proveedor.
+[builder_backend]
+claude = "claude_code"
+codex = "codex_cli"
+# deepseek = "aider"   # día 7
+# qwen = "aider"       # día 7
+# gemini = "aider"     # día 7

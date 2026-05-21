@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–4 completados
+## Estado: días 1–6 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **81 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **100 tests verdes.**
 
 **Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
@@ -123,19 +123,32 @@ Demostrado: con `planner=codex, builder=claude, tester=codex`, un veredicto FAIL
 tester re-itera el builder con la acceptance previa como contexto, y al PASS cierra
 el ciclo. El hand-off entre roles es file-based (`task_`/`builder_`/`acceptance_`).
 
-## ⚠️ Límite actual: orquestación documental, no tool-execution
+**Día 6 — capa de ejecución (executors):**
+- ✅ `core/executors/base.py` — abstracción `Executor` + `ExecutionResult`.
+- ✅ `proxy.py` — `ProxyExecutor`: razonamiento documental (planner/tester) vía el proxy.
+- ✅ `cli.py` — `CliExecutor`: delega al CLI agéntico (builder edita el repo de verdad);
+  construye el comando por backend, ejecuta y captura `git diff --name-only`. **6 tests.**
+- ✅ `test_runner.py` — el tester re-ejecuta los tests reales (autodetecta pytest/npm/go). **6 tests.**
+- ✅ `config/executors.toml` + `ExecutorConfig` — mapea proveedor → backend del builder.
+- ✅ `runner` refactorizado: **auto-selecciona executor por rol** (builder con backend → CLI; resto → proxy), gate PII intacto antes de elegir. **+4 tests de selección.**
 
-orchestra **compone prompts, invoca modelos y enruta**. NO ejecuta tool-calls — es
-decir, los modelos **no editan el repo directamente**. El "output" de cada rol (su
-razonamiento + código/veredicto como texto) se vuelca a su artefacto en `progress/`,
-y el siguiente rol lo lee. Es el modelo "architect" (razonar) sin el "editor" (aplicar).
+### Quién ejecuta qué (dirigido por rol)
 
-Para que el builder edite código real en disco hace falta un **agent loop con
-ejecución de herramientas** (function-calling/MCP + file ops + bash sandbox) — un
-hito mayor. Dos caminos posibles, a decidir:
-1. **Construir el executor** dentro de orchestra (MCP client + aplicar diffs + correr tests).
-2. **Delegar la ejecución** a Claude Code / Codex CLI por rol, usando orchestra solo
-   como capa de orquestación + routing + gate PII.
+| Rol | Executor | Edita el repo |
+|---|---|---|
+| planner | ProxyExecutor (proxy → texto) | No, produce el task file |
+| tester | ProxyExecutor + re-ejecuta tests reales | No, solo lee + corre tests |
+| **builder** | **CliExecutor** → `claude -p` / `codex exec` (aider para open, día 7) | **Sí** |
+
+El gate PII se aplica **antes** de elegir backend: la PII nunca llega a un CLI de un
+proveedor sin DPA. Si un proveedor no tiene backend configurado (qwen/deepseek/gemini
+hoy), el builder cae a ejecución documental hasta que se añada (día 7, vía aider).
+
+> **Verificación pendiente en tu entorno**: claude/codex/aider no están instalados
+> aquí, así que la ejecución real está testeada con `subprocess` mockeado. En tu
+> máquina, con los CLIs instalados y el proxy levantado, `orchestra cycle` ejecuta
+> de verdad. El comando por backend es configurable en `executors.toml` (como el
+> `CODEX_CMD` ajustable de dev-config).
 
 ### Cómo correr los tests
 
@@ -152,16 +165,17 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 # verifica:  curl http://localhost:4000/health
 ```
 
-## Lo que viene (día 5+)
+## Lo que viene (día 7+)
 
 | Hito | Entrega |
 |---|---|
-| 5 | Fallback en runtime por caída/rate-limit (`next_fallback` ya existe, falta cablearlo en el invoker con reintento). Pulido del CLI (`config show/set`). Verificación contra el proxy real con Claude + Codex. |
-| 6+ | **Decisión grande**: tool-execution (ver "Límite actual"). Construir el agent loop dentro de orchestra, o delegar la ejecución a Claude Code/Codex por rol. |
+| 7 | Backend `aider` para builder con deepseek/qwen/gemini (apuntado al proxy). Autodetección de tests con override por `orchestra.toml` del repo. Verificación real con claude/codex instalados. |
+| 8 | Fallback en runtime por caída/rate-limit (`next_fallback` ya existe, falta cablearlo con reintento). Pulido del CLI (`config show/set`). |
 
-> El ciclo de orquestación completo (3 roles, rotación de modelos, gate PII, routing
-> del veredicto) ya funciona end-to-end. Lo que falta para que sea un agente que
-> *modifica el repo* es la capa de ejecución de herramientas.
+> El sistema completo ya funciona end-to-end: 3 roles, rotación de modelos por rol,
+> gate PII enforced, routing del veredicto, y **ejecución real delegada a CLIs
+> agénticos** para el builder. Falta cubrir los proveedores open (aider) y endurecer
+> el runtime (fallback, verificación con CLIs reales).
 
 ## Requisitos
 

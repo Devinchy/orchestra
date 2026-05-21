@@ -66,10 +66,25 @@ class RoutingConfig:
 
 
 @dataclass(frozen=True)
+class BackendSpec:
+    name: str
+    command_template: str
+
+
+@dataclass(frozen=True)
+class ExecutorConfig:
+    # nombre de backend -> spec (claude_code, codex_cli, aider...)
+    backends: dict[str, BackendSpec] = field(default_factory=dict)
+    # proveedor -> nombre de backend que usa el builder con ese proveedor
+    builder_backend: dict[str, str] = field(default_factory=dict)
+
+
+@dataclass(frozen=True)
 class OrchestraConfig:
     providers: dict[str, ProviderSpec]
     roles: dict[str, RoleSpec]
     routing: RoutingConfig
+    executors: ExecutorConfig = field(default_factory=ExecutorConfig)
 
 
 def _load_toml(path: Path) -> dict:
@@ -132,6 +147,19 @@ def _parse_routing(raw: dict) -> RoutingConfig:
     return RoutingConfig(pii_gate=pii, fallback=dict(raw.get("fallback", {})))
 
 
+def _parse_executors(raw: dict) -> ExecutorConfig:
+    backends: dict[str, BackendSpec] = {}
+    for name, spec in raw.get("backends", {}).items():
+        try:
+            backends[name] = BackendSpec(name=name, command_template=spec["command"])
+        except KeyError as e:
+            raise ConfigError(f"backend '{name}': falta el campo {e}") from e
+    return ExecutorConfig(
+        backends=backends,
+        builder_backend=dict(raw.get("builder_backend", {})),
+    )
+
+
 def _validate(config: OrchestraConfig) -> None:
     providers = config.providers
 
@@ -181,14 +209,33 @@ def _validate(config: OrchestraConfig) -> None:
         if dst not in providers:
             raise ConfigError(f"fallback: provider destino '{dst}' no existe")
 
+    # 5. Los backends del builder referencian providers y backends conocidos.
+    ex = config.executors
+    for prov, backend in ex.builder_backend.items():
+        if prov not in providers:
+            raise ConfigError(f"builder_backend: provider '{prov}' no existe")
+        if backend not in ex.backends:
+            raise ConfigError(
+                f"builder_backend['{prov}'] usa backend '{backend}' no definido en [backends]"
+            )
+
 
 def load_config(config_dir: Path) -> OrchestraConfig:
     """Carga y valida los 3 TOML de config_dir. Lanza ConfigError si algo no cuadra."""
     config_dir = Path(config_dir)
+    # executors.toml es OPCIONAL — si falta, ExecutorConfig queda vacío y el builder
+    # cae a ejecución documental (proxy) para todos los proveedores.
+    executors_path = config_dir / "executors.toml"
+    executors = (
+        _parse_executors(_load_toml(executors_path))
+        if executors_path.exists()
+        else ExecutorConfig()
+    )
     config = OrchestraConfig(
         providers=_parse_providers(_load_toml(config_dir / "providers.toml")),
         roles=_parse_roles(_load_toml(config_dir / "roles.toml")),
         routing=_parse_routing(_load_toml(config_dir / "routing.toml")),
+        executors=executors,
     )
     _validate(config)
     return config

@@ -42,6 +42,41 @@ def test_rol_builder_default_es_sonnet():
     assert builder.default_model == "claude-sonnet-4-6"
 
 
+def test_executors_reales_cargan():
+    c = cfg.load_config(REPO_CONFIG)
+    assert c.executors.builder_backend["claude"] == "claude_code"
+    assert c.executors.builder_backend["codex"] == "codex_cli"
+    assert "{model}" in c.executors.backends["codex_cli"].command_template
+
+
+def test_executors_ausente_queda_vacio(tmp_path):
+    # tmp config sin executors.toml -> ExecutorConfig vacío, no rompe.
+    _write_min_config(tmp_path, providers=_GOOD_PROVIDERS, roles="""
+[roles.builder]
+prompt = "x.md"
+default_provider = "claude"
+default_model = "claude-sonnet-4-6"
+tools = ["read"]
+""", routing=_GOOD_ROUTING)
+    c = cfg.load_config(tmp_path)
+    assert c.executors.backends == {}
+    assert c.executors.builder_backend == {}
+
+
+def test_builder_backend_a_backend_inexistente_falla(tmp_path):
+    (tmp_path / "executors.toml").write_text(
+        '[builder_backend]\nclaude = "fantasma"\n', encoding="utf-8")
+    _write_min_config(tmp_path, providers=_GOOD_PROVIDERS, roles="""
+[roles.builder]
+prompt = "x.md"
+default_provider = "claude"
+default_model = "claude-sonnet-4-6"
+tools = ["read"]
+""", routing=_GOOD_ROUTING)
+    with pytest.raises(cfg.ConfigError, match="fantasma"):
+        cfg.load_config(tmp_path)
+
+
 # ---------- Validaciones: config incoherente debe reventar ----------
 
 def _write_min_config(tmp: Path, *, providers: str, roles: str, routing: str) -> Path:
