@@ -180,7 +180,8 @@ def run_role(
         eff_provider, eff_model = decision.provider, decision.model
         try:
             result = make_executor(eff_provider).execute(
-                prompt, model=eff_model, repo_root=repo_root, role=role, slug=slug
+                prompt, model=eff_model, repo_root=repo_root, role=role, slug=slug,
+                on_event=on_event,
             )
         except _TRANSIENT_ERRORS as e:
             errors.append(f"{eff_provider}: {e}")

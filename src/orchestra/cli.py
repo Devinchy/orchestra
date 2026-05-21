@@ -42,17 +42,20 @@ def _fmt_cost(cost_usd) -> str:
 
 
 def _progress(event: str, **d) -> None:
-    """Imprime el progreso en vivo (ASCII, sin depender de la codificación de consola)."""
+    """Imprime el progreso en vivo (ASCII, sin depender de la codificación de consola).
+
+    Formato streaming: el rol abre una línea, los tool-calls del builder aparecen
+    debajo SEGÚN LLEGAN (no al final), y el rol cierra con el resumen.
+    """
     if event == "role_start":
-        click.echo(f"  > {d['role']} ...", nl=False)
+        click.echo(f"  > {d['role']}")
+    elif event == "tool_call":
+        extra = f" {d['summary']}" if d.get("summary") else ""
+        click.echo(f"      . {d['tool']}{extra}")
     elif event == "role_done":
-        click.echo(f"  {d['provider']}/{d['model']}  "
+        click.echo(f"    done {d['provider']}/{d['model']}  "
                    f"{d['elapsed_s']:.1f}s{_fmt_tokens(d.get('usage', {}))}"
                    f"{_fmt_cost(d.get('cost_usd'))}")
-        # Traza del builder: qué herramientas usó (de stream-json).
-        for t in d.get("trace", []):
-            extra = f" {t.summary}" if getattr(t, "summary", "") else ""
-            click.echo(f"      . {t.tool}{extra}")
 
 
 @main.command()

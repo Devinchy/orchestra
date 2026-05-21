@@ -74,3 +74,20 @@ def test_looks_like_stream_json():
     assert cs.looks_like_stream_json(SAMPLE) is True
     assert cs.looks_like_stream_json(["texto plano de codex/aider", "más texto"]) is False
     assert cs.looks_like_stream_json([]) is False
+
+
+def test_tool_calls_in_line_extrae_de_una_linea():
+    line = _line({"type": "assistant", "message": {"content": [
+        {"type": "text", "text": "voy a escribir"},
+        {"type": "tool_use", "name": "Write", "input": {"file_path": "src/x.py"}},
+        {"type": "tool_use", "name": "Bash", "input": {"command": "pytest"}},
+    ]}})
+    calls = cs.tool_calls_in_line(line)
+    assert [c.tool for c in calls] == ["Write", "Bash"]
+    assert "src/x.py" in calls[0].summary
+
+
+def test_tool_calls_in_line_vacio_si_no_aplica():
+    assert cs.tool_calls_in_line(_line({"type": "result", "result": "x"})) == []
+    assert cs.tool_calls_in_line("no es json {") == []
+    assert cs.tool_calls_in_line("") == []

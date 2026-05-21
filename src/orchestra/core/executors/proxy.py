@@ -32,6 +32,7 @@ class ProxyExecutor:
         repo_root: Path,
         role: str,
         slug: str,
+        on_event: Callable[..., None] | None = None,   # sin streaming en el proxy (1 llamada)
     ) -> ExecutionResult:
         result = self._invoke(
             [{"role": "user", "content": prompt}],

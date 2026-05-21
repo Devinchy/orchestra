@@ -12,6 +12,7 @@ import shlex
 import shutil
 import subprocess
 import tempfile
+import threading
 from pathlib import Path
 from typing import Callable
 
@@ -31,20 +32,45 @@ def _resolve_exe(name: str) -> str:
 
 
 def _default_run(
-    argv: list[str], *, cwd: Path, stdin_text: str | None, env: dict | None = None
+    argv: list[str], *, cwd: Path, stdin_text: str | None,
+    env: dict | None = None, on_line: Callable[[str], None] | None = None,
 ) -> CmdResult:
+    """Ejecuta el comando con streaming: lee stdout línea a línea y llama on_line.
+
+    Usa Popen (no run) para emitir cada línea según llega — así el builder se ve
+    en directo. El prompt se escribe a stdin en un hilo para no bloquear la lectura
+    (evita deadlock si el proceso produce mucho output antes de consumir el stdin).
+    encoding utf-8 explícito: en Windows el modo texto usa cp1252, que no puede
+    codificar las flechas "→" del prompt.
+    """
     full_env = {**os.environ, **env} if env else None
     resolved = [_resolve_exe(argv[0]), *argv[1:]]
-    # encoding utf-8 explícito: en Windows el modo texto usa cp1252 por defecto y
-    # el prompt lleva caracteres no-ASCII (flechas "→" de los contratos/rules) que
-    # cp1252 no puede codificar al mandarlos por stdin. errors="replace" en la salida
-    # evita petar si el CLI emite bytes raros.
-    proc = subprocess.run(
-        resolved, cwd=str(cwd), input=stdin_text,
-        capture_output=True, text=True, encoding="utf-8", errors="replace",
-        env=full_env,
+    proc = subprocess.Popen(
+        resolved, cwd=str(cwd),
+        stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        text=True, encoding="utf-8", errors="replace", env=full_env, bufsize=1,
     )
-    return CmdResult(returncode=proc.returncode, stdout=(proc.stdout or "") + (proc.stderr or ""))
+
+    def _writer() -> None:
+        try:
+            if stdin_text is not None:
+                proc.stdin.write(stdin_text)
+            proc.stdin.close()
+        except (BrokenPipeError, OSError):
+            pass
+
+    writer = threading.Thread(target=_writer, daemon=True)
+    writer.start()
+
+    lines: list[str] = []
+    for raw in proc.stdout:
+        line = raw.rstrip("\n")
+        lines.append(line)
+        if on_line is not None:
+            on_line(line)
+    proc.wait()
+    writer.join(timeout=1)
+    return CmdResult(returncode=proc.returncode, stdout="\n".join(lines))
 
 
 def _default_git_changed(repo_root: Path) -> list[str]:
@@ -122,9 +148,21 @@ class CliExecutor:
         repo_root: Path,
         role: str,
         slug: str,
+        on_event: Callable[..., None] | None = None,
     ) -> ExecutionResult:
         argv, stdin_text, _ = self.build_command(model, prompt)
-        result = self._run(argv, cwd=repo_root, stdin_text=stdin_text, env=self.env or None)
+
+        def _on_line(line: str) -> None:
+            # Streaming en vivo: emite cada tool-call de Claude según llega.
+            if on_event is None:
+                return
+            for call in claude_stream.tool_calls_in_line(line):
+                on_event("tool_call", role=role, tool=call.tool, summary=call.summary)
+
+        result = self._run(
+            argv, cwd=repo_root, stdin_text=stdin_text,
+            env=self.env or None, on_line=_on_line,
+        )
         files = self._git_changed(repo_root)
         success = result.returncode == 0
 

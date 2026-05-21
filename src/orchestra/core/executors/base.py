@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Protocol
+from typing import Callable, Protocol
 
 
 @dataclass(frozen=True)
@@ -40,5 +40,6 @@ class Executor(Protocol):
         repo_root: Path,
         role: str,
         slug: str,
+        on_event: "Callable[..., None] | None" = None,
     ) -> ExecutionResult:
         ...

@@ -40,7 +40,7 @@ class FakeExecutor:
         self.content = content
         self.files = files or []
 
-    def execute(self, prompt, *, model, repo_root, role, slug):
+    def execute(self, prompt, *, model, repo_root, role, slug, on_event=None):
         self.record["model"] = model
         self.record["prompt"] = prompt
         self.record["role"] = role
@@ -131,7 +131,7 @@ def test_tester_inyecta_output_de_tests_en_el_prompt(tmp_path):
 # ---------- observabilidad: eventos + métricas ----------
 
 class UsageExecutor:
-    def execute(self, prompt, *, model, repo_root, role, slug):
+    def execute(self, prompt, *, model, repo_root, role, slug, on_event=None):
         return ExecutionResult(content="ok", usage={"completion_tokens": 42})
 
 
@@ -226,7 +226,7 @@ def _factory_that_fails(failing: set[str], record: list):
     """executor_factory: lanza InvocationError para los providers en `failing`."""
     def factory(provider):
         class _E:
-            def execute(self, prompt, *, model, repo_root, role, slug):
+            def execute(self, prompt, *, model, repo_root, role, slug, on_event=None):
                 record.append(provider)
                 if provider in failing:
                     raise InvocationError(f"{provider} caído (rate limit)")
@@ -271,7 +271,7 @@ def test_run_role_success_false_no_dispara_fallback(tmp_path):
 
     def factory(provider):
         class _E:
-            def execute(self, prompt, *, model, repo_root, role, slug):
+            def execute(self, prompt, *, model, repo_root, role, slug, on_event=None):
                 attempts.append(provider)
                 return ExecutionResult(content="2 passed, 1 failed", success=False)
         return _E()

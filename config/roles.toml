@@ -8,23 +8,24 @@
 #
 # Rotar modelos = cambiar `default_provider`/`default_model` aquí, o pasar overrides.
 
+# Patrón de coste: modelo POTENTE donde se razona (planner diseña la tarea,
+# tester revisa y emite veredicto) y modelo ECONÓMICO donde se ejecuta una tarea
+# ya definida (builder). Igual que dev-config: planner/tester=Opus, builder=Sonnet.
+
 [roles.planner]
 prompt = "src/orchestra/roles/planner.md"
 default_provider = "claude"
-# Ideal: claude-opus-4-7 (razonamiento). Puesto en sonnet para pruebas hasta
-# verificar el ID real de Opus en la cuenta. Cámbialo cuando lo confirmes.
-default_model = "claude-sonnet-4-6"
+default_model = "claude-opus-4-7"               # razonamiento: modelo potente
 tools = ["read", "grep", "glob", "bash_safe"]   # solo lee + escribe progress/, no edita código
 
 [roles.builder]
 prompt = "src/orchestra/roles/builder.md"
 default_provider = "claude"
-default_model = "claude-sonnet-4-6"
+default_model = "claude-sonnet-4-6"             # ejecución: modelo económico
 tools = ["read", "edit", "write", "bash", "grep", "glob"]
 
 [roles.tester]
 prompt = "src/orchestra/roles/tester.md"
 default_provider = "claude"
-# Ideal: claude-opus-4-7. En sonnet para pruebas (ver nota en planner).
-default_model = "claude-sonnet-4-6"
+default_model = "claude-opus-4-7"               # razonamiento/veredicto: modelo potente
 tools = ["read", "grep", "glob", "bash_test"]   # read-only + runners de test

@@ -42,6 +42,30 @@ def _summarize_input(tool_input: dict) -> str:
     return ""
 
 
+def tool_calls_in_line(line: str) -> list[ToolCall]:
+    """Extrae los tool_use de UNA línea JSONL (para parseo incremental en streaming).
+
+    Vacío si la línea no parsea, no es un evento `assistant`, o no tiene tool_use.
+    """
+    s = line.strip()
+    if not s:
+        return []
+    try:
+        obj = json.loads(s)
+    except (json.JSONDecodeError, ValueError):
+        return []
+    if not isinstance(obj, dict) or obj.get("type") != "assistant":
+        return []
+    calls: list[ToolCall] = []
+    for block in (obj.get("message") or {}).get("content") or []:
+        if isinstance(block, dict) and block.get("type") == "tool_use":
+            calls.append(ToolCall(
+                tool=block.get("name", "?"),
+                summary=_summarize_input(block.get("input", {})),
+            ))
+    return calls
+
+
 def looks_like_stream_json(lines: list[str]) -> bool:
     """True si la salida parece JSONL de Claude Code (1ª línea no vacía es un objeto con 'type')."""
     for raw in lines:
@@ -76,13 +100,7 @@ def parse_stream(lines: list[str]) -> ParsedStream:
 
         kind = obj.get("type")
         if kind == "assistant":
-            content = (obj.get("message") or {}).get("content") or []
-            for block in content:
-                if isinstance(block, dict) and block.get("type") == "tool_use":
-                    trace.append(ToolCall(
-                        tool=block.get("name", "?"),
-                        summary=_summarize_input(block.get("input", {})),
-                    ))
+            trace.extend(tool_calls_in_line(raw))
         elif kind == "result":
             result_text = obj.get("result")
             cost_usd = obj.get("total_cost_usd")

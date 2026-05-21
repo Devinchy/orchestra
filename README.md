@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–10 completados
+## Estado: días 1–11 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **130 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **133 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -208,11 +208,17 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 - ✅ **Traza del builder + coste real**: el backend `claude_code` usa `--output-format stream-json --verbose`; `core/executors/claude_stream.py` extrae el texto final (hand-off limpio), la **traza de tool-calls** (`Write src/x.py`, `Bash pytest`…), el usage y el **coste real** que reporta Claude. **+8 tests.**
 - ✅ El CLI imprime la traza bajo cada rol builder; codex/aider (texto plano) no se parsean (fallback automático).
 
+**Día 11 — streaming en directo:**
+- ✅ `_default_run` pasa de `subprocess.run` (bloqueante) a **`Popen` + lectura incremental**: lee el stdout del CLI línea a línea y emite un evento `tool_call` **según llega**. El prompt se escribe a stdin en un hilo (evita deadlock).
+- ✅ `Executor.execute` gana `on_event` (el `CliExecutor` lo usa para streaming; el proxy lo ignora). `claude_stream.tool_calls_in_line` parsea cada línea JSONL incrementalmente.
+- ✅ El CLI imprime el builder **en directo**: las tool-calls aparecen mientras Claude trabaja, no al terminar. Verificado: con un proceso que gotea, los eventos salen a los 0.0s y 0.4s, no al final.
+
 ```
-  > builder ...  claude/claude-sonnet-4-6  78.3s · 1.5k tok · $0.0418
-      . Write tests/test_slug.py
+  > builder
+      . Write tests/test_slug.py        ← aparece cuando Claude lo hace
       . Write src/slug.py
       . Bash pytest -q
+    done claude/claude-sonnet-4-6  78.3s · 1.5k tok · $0.0418
 ```
 
 ## Lo que viene
@@ -226,7 +232,8 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 > El sistema está **funcionalmente completo y verificado con Claude**: 3 roles,
 > rotación por rol entre 5 proveedores, gate PII enforced (re-evaluado en cada
 > fallback), routing del veredicto, ejecución real delegada a CLIs, fallback
-> automático, y observabilidad (progreso en vivo, métricas, coste, traza del builder).
+> automático, y observabilidad completa (progreso en vivo, **streaming del builder
+> en directo**, métricas, coste estimado+real, traza de tool-calls).
 
 ## Requisitos
 
