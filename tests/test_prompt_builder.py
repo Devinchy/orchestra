@@ -47,6 +47,28 @@ def test_incluye_contrato_del_rol(tmp_path):
     assert "ciclo TDD completo" in prompt   # del builder.md real
 
 
+def test_git_pr_rule_siempre_presente(tmp_path):
+    repo = _make_repo(tmp_path)
+    prompt = pb.build_prompt(_config(), "builder", "demo",
+                             repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
+    assert "RULE — 60-git-pr" in prompt
+
+
+def test_rule_python_solo_si_repo_es_python(tmp_path):
+    repo = _make_repo(tmp_path)
+    # sin marcadores Python → 30 NO se inyecta
+    prompt = pb.build_prompt(_config(), "builder", "demo",
+                             repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
+    assert "RULE — 30-python-playwright" not in prompt
+
+    # con pyproject.toml → 30 SÍ se inyecta
+    (repo / "pyproject.toml").write_text("[project]\nname='x'", encoding="utf-8")
+    prompt2 = pb.build_prompt(_config(), "builder", "demo",
+                              repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
+    assert "RULE — 30-python-playwright" in prompt2
+    assert "time.sleep" in prompt2          # contenido real de la rule
+
+
 def test_tester_inyecta_sus_skills(tmp_path):
     repo = _make_repo(tmp_path)
     prompt = pb.build_prompt(_config(), "tester", "demo",

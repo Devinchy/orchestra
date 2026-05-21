@@ -18,7 +18,12 @@ from pathlib import Path
 from orchestra.core.config import OrchestraConfig
 
 # Rules de implementación inyectadas siempre (si existen en orchestra_root).
-_ALWAYS_RULES = ["00-general", "10-security", "20-testing", "70-data-rgpd"]
+_ALWAYS_RULES = ["00-general", "10-security", "20-testing", "60-git-pr", "70-data-rgpd"]
+
+# Rules condicionales al stack del repo target: rule → marcadores que la activan.
+_STACK_RULES = {
+    "30-python-playwright": ("pyproject.toml", "requirements.txt"),
+}
 
 _FRONTMATTER = re.compile(r"\A---\n.*?\n---\n", re.DOTALL)
 
@@ -86,11 +91,19 @@ def build_prompt(
         raise PromptError(f"no encuentro el contrato del rol: {orchestra_root / role.prompt}")
     parts.append(_section("ROL", strip_frontmatter(role_md)))
 
-    # Rules de implementación.
+    # Rules de implementación (siempre).
+    rules_dir = orchestra_root / "src" / "orchestra" / "rules"
     for rule in _ALWAYS_RULES:
-        body = _read(orchestra_root / "src" / "orchestra" / "rules" / f"{rule}.md")
+        body = _read(rules_dir / f"{rule}.md")
         if body is not None:
             parts.append(_section(f"RULE — {rule}", strip_frontmatter(body)))
+
+    # Rules condicionales al stack del repo target (p. ej. Python → 30-python-playwright).
+    for rule, markers in _STACK_RULES.items():
+        if any((repo_root / m).exists() for m in markers):
+            body = _read(rules_dir / f"{rule}.md")
+            if body is not None:
+                parts.append(_section(f"RULE — {rule}", strip_frontmatter(body)))
 
     # Skill engram-memory (si orchestra la trae).
     engram = _read(orchestra_root / "src" / "orchestra" / "skills" / "engram-memory.md")

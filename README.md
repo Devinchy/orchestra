@@ -70,7 +70,7 @@ permitido para PII por la política).
 
 ## Estado: días 1–12 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **135 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **137 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -225,6 +225,7 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 - ✅ Mecanismo `skills = [...]` en `roles.toml`; el `prompt_builder` inyecta el contenido de cada skill al rol que la declara (estático, no auto-discovery — encaja con el modelo agnóstico). **+2 tests.**
 - ✅ 4 skills propias de orchestra (concisas, agnósticas, sin maquinaria de Claude Code): `security-review`, `rgpd-review` → **tester**; `self-critique` → **planner**; `systematic-debugging` → **builder`.
 - Es el primer trozo de **paridad con dev-config traído "de forma correcta"**: el *conocimiento* (texto) se inyecta a cualquier modelo; el *mecanismo* de auto-discovery de Claude Code no se reinventa.
+- ✅ **2 rules portadas**: `60-git-pr` (siempre) y `30-python-playwright` (**condicional al stack** — solo si el repo target tiene `pyproject.toml`/`requirements.txt`). Quedan las 7 rules de dev-config cubiertas salvo `40-session-log`, que no aplica (era de los hooks de Claude Code). **+2 tests.**
 
 > Pendiente de paridad: las skills de flujo interactivo (brainstorming, worktrees…) no aplican al ciclo orquestado; el resto (MCPs, CI, GGA, templates, CLAUDE.md) se traerá vía un futuro `orchestra deploy` que las despliega al repo target. Ver el inventario de paridad.
 
