@@ -48,3 +48,45 @@ def test_match_es_full_match_no_substring():
 
 def test_default_patterns_no_esta_vacio():
     assert len(pii.DEFAULT_SENSITIVE_PATTERNS) > 0
+
+
+# ---------- extract_candidate_paths ----------
+
+def test_extrae_paths_en_backticks():
+    text = "Toca `src/auth/login.py` y `README.md`."
+    got = pii.extract_candidate_paths(text)
+    assert "src/auth/login.py" in got
+    assert "README.md" in got
+
+
+def test_extrae_paths_con_barra_sin_backticks():
+    text = "- modificar src/api/users.py para añadir el endpoint"
+    assert "src/api/users.py" in pii.extract_candidate_paths(text)
+
+
+def test_extrae_archivo_con_extension_sin_directorio():
+    text = "crea el archivo .env.production en la raíz"
+    assert ".env.production" in pii.extract_candidate_paths(text)
+
+
+def test_ignora_urls():
+    text = "ver docs en https://example.com/guia"
+    assert not any(p.startswith("http") for p in pii.extract_candidate_paths(text))
+
+
+# ---------- task_touches_pii ----------
+
+def test_task_touches_pii_true(tmp_path):
+    task = tmp_path / "task_demo.md"
+    task.write_text("Implementar `src/auth/session.py` con el token.", encoding="utf-8")
+    touches, matched = pii.task_touches_pii(task)
+    assert touches is True
+    assert "src/auth/session.py" in matched
+
+
+def test_task_touches_pii_false(tmp_path):
+    task = tmp_path / "task_demo.md"
+    task.write_text("Implementar `src/utils/math.py` con sumas.", encoding="utf-8")
+    touches, matched = pii.task_touches_pii(task)
+    assert touches is False
+    assert matched == []

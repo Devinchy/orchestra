@@ -11,6 +11,7 @@ El match es FULL match (^patrón$), igual que en el workflow.
 from __future__ import annotations
 
 import re
+from pathlib import Path
 
 # Patrones genéricos. Cada repo puede ampliarlos vía routing.toml
 # (sensitive_patterns_file) sin tocar este módulo.
@@ -54,3 +55,48 @@ def paths_touch_pii(
         if any(rx.match(path) for rx in compiled):
             matched.append(path)
     return matched
+
+
+# Heurística de extracción de paths desde un task file (réplica de detect-pii.sh).
+_BACKTICK = re.compile(r"`([^`]+)`")
+_SLASH_PATH = re.compile(r"[A-Za-z0-9_.\-]+/[A-Za-z0-9_./\-]+")
+_EXT_FILE = re.compile(
+    r"\.?[A-Za-z0-9_\-]+\.(?:py|ts|tsx|js|jsx|sh|ya?ml|json|env|pem|key|pfx|p12|pkcs12)\b"
+)
+_ENV_LIKE = re.compile(r"\.env[A-Za-z0-9_.\-]*")
+_ENDS_IN_EXT = re.compile(r"\.[A-Za-z0-9]+$")
+
+
+def extract_candidate_paths(text: str) -> set[str]:
+    """Extrae tokens que parecen paths de un texto (task file).
+
+    Generoso a propósito: un falso positivo solo da un gate más conservador.
+    Capta: tokens entre backticks que parecen path/archivo, tokens con `/`,
+    archivos con extensión de código, y dotfiles tipo `.env*`. Filtra URLs.
+    """
+    out: set[str] = set()
+
+    for m in _BACKTICK.findall(text):
+        token = m.strip()
+        if "/" in token or _ENDS_IN_EXT.search(token):
+            out.add(token)
+
+    out.update(_SLASH_PATH.findall(text))
+    out.update(_EXT_FILE.findall(text))
+    out.update(_ENV_LIKE.findall(text))
+
+    return {p for p in out if not p.startswith(("http://", "https://"))}
+
+
+def task_touches_pii(
+    task_path: str | Path,
+    patterns: list[str] | None = None,
+) -> tuple[bool, list[str]]:
+    """Lee un task file y decide si toca PII según sus paths candidatos.
+
+    Returns (touches, matched_paths).
+    """
+    text = Path(task_path).read_text(encoding="utf-8")
+    candidates = sorted(extract_candidate_paths(text))
+    matched = paths_touch_pii(candidates, patterns)
+    return (bool(matched), matched)

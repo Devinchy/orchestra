@@ -108,15 +108,15 @@ def apply_pii_gate(
             gate.strict_fallback_provider,
             gate.strict_fallback_model,
             "rerouted",
-            f"PII + '{provider_name}' sin DPA + gate strict → rebote a "
+            f"PII + '{provider_name}' sin DPA + gate strict -> rebote a "
             f"'{gate.strict_fallback_provider}'",
         )
 
     # advisory
     return GateDecision(
         provider_name, model, "warned",
-        f"⚠️ PII + '{provider_name}' sin DPA (gate advisory) — verifica que el DPA "
-        f"con este proveedor está vigente",
+        f"[AVISO] PII + '{provider_name}' sin DPA (gate advisory) -- verifica que el "
+        f"DPA con este proveedor esta vigente",
     )
 
 

@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–2 completados
+## Estado: días 1–3 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **44 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **63 tests verdes.**
 
 **Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
@@ -84,6 +84,25 @@ Construido **test-first** (la propia filosofía que orquesta). **44 tests verdes
 - ✅ `litellm.yaml` — proxy con los 5 proveedores + MCP bridge de Engram.
 - ✅ `core/prompt_builder.py` — compone el prompt por rol (contrato + rules + artefactos del repo). **9 tests.**
 - ✅ `core/invoker.py` — llamada OpenAI-compatible al proxy (httpx). **5 tests** (con `MockTransport`, sin red).
+
+**Día 3 — end-to-end:**
+- ✅ `core/pii.py` extendido — escanea el task file y decide si toca PII (`task_touches_pii`). **+6 tests.**
+- ✅ `core/transcript.py` — captura append-only a `progress/transcript_<slug>.md`. **4 tests.**
+- ✅ `core/runner.py` — el pegamento: resuelve modelo → gate PII → prompt → invoca → transcript. **4 tests.**
+- ✅ `cli.py` — `orchestra run <role> --slug X [--provider/--model]` + `status`. **5 tests.**
+
+### Uso real (con el proxy levantado)
+
+```bash
+# en tu repo de producto, con una tarea ya generada en progress/task_<slug>.md:
+orchestra run builder --slug auth-jwt                  # usa el default del rol
+orchestra run builder --slug auth-jwt --provider codex # override; el gate PII puede rebotarlo
+orchestra status                                        # tarea activa
+```
+
+Demostrado end-to-end: pedir `--provider codex` sobre una tarea que toca `src/auth/login.py`
+con `pii_gate.mode = strict` **rebota automáticamente a claude/sonnet** (Codex no tiene DPA),
+invoca, y escribe el transcript. El rol que se invoca de verdad es el que el gate decide.
 
 ### Cómo correr los tests
 
@@ -100,17 +119,16 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 # verifica:  curl http://localhost:4000/health
 ```
 
-## Lo que viene (días 3–5)
+## Lo que viene (días 4–5)
 
 | Día | Entrega |
 |---|---|
-| 3 | `core/runner.py` + `orchestra run <role> --slug X` end-to-end (resuelve modelo → gate PII → prompt → invoca proxy → captura transcript). Hand-off file-based entre roles. |
-| 4 | `orchestra cycle` (los 3 encadenados, leyendo el "Volver a" del tester). Verificación con DeepSeek + Qwen reales. |
-| 5 | Gemini, fallback en runtime por caída de proveedor, pulido del CLI (`status`, `config set`). |
+| 4 | `orchestra cycle --slug X --planner P --builder B --tester T` (los 3 encadenados, leyendo el "Volver a" del tester para enrutar). Verificación contra el proxy real con Claude + Codex. |
+| 5 | Fallback en runtime por caída/rate-limit de proveedor (`next_fallback` ya existe, falta cablearlo en el invoker). Pulido del CLI (`config set`, `config show`). Verificación con DeepSeek/Qwen/Gemini. |
 
-> Pieza que falta para el end-to-end: el **runner** (día 3) que une lo que ya existe
-> — `routing` decide el modelo, `prompt_builder` arma el prompt, `invoker` llama al
-> proxy. Solo falta el pegamento + captura de `progress/transcript_<slug>.md`.
+> Todo lo del ciclo de un rol ya funciona end-to-end. El día 4 es encadenar los 3
+> roles y que el veredicto del tester (`Volver a: builder/test-writer/planner`)
+> decida el siguiente paso.
 
 ## Requisitos
 
