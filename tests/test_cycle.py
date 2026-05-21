@@ -25,10 +25,39 @@ def _config():
     return cfg.load_config(REPO_CONFIG)
 
 
-def _result(role, content, provider="claude", model="m"):
+def _result(role, content, provider="claude", model="m", cost_usd=None, elapsed_s=0.0):
     return RunResult(role=role, provider=provider, model=model,
                      gate_action="pass", gate_reason="", pii_paths=[],
-                     content=content, transcript_path=Path("t"))
+                     content=content, transcript_path=Path("t"),
+                     cost_usd=cost_usd, elapsed_s=elapsed_s)
+
+
+def test_cycle_agrega_coste_y_tiempo_total(tmp_path):
+    repo = _repo(tmp_path)
+    costs = {"planner": 0.02, "builder": 0.04, "tester": 0.03}
+
+    def run_fn(config, role, slug, **kw):
+        content = ("# Tarea" if role == "planner"
+                   else "impl" if role == "builder"
+                   else "Veredicto: PASS\nVolver a: ninguno")
+        return _result(role, content, cost_usd=costs[role], elapsed_s=2.0)
+
+    res = cycle.run_cycle(_config(), "demo", run_fn=run_fn, **_common_kwargs(repo))
+    assert res.total_cost_usd == 0.09         # 0.02 + 0.04 + 0.03
+    assert res.total_elapsed_s == 6.0         # 3 steps × 2.0
+
+
+def test_cycle_total_cost_none_si_ningun_step_tiene_coste(tmp_path):
+    repo = _repo(tmp_path)
+
+    def run_fn(config, role, slug, **kw):
+        content = ("# Tarea" if role == "planner"
+                   else "impl" if role == "builder"
+                   else "Veredicto: PASS\nVolver a: ninguno")
+        return _result(role, content)        # cost_usd None
+
+    res = cycle.run_cycle(_config(), "demo", run_fn=run_fn, **_common_kwargs(repo))
+    assert res.total_cost_usd is None
 
 
 def _scripted_run_fn(scripts: dict[str, list[str]]):

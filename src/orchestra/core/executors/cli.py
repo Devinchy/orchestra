@@ -34,14 +34,16 @@ def _resolve_exe(name: str) -> str:
 def _default_run(
     argv: list[str], *, cwd: Path, stdin_text: str | None,
     env: dict | None = None, on_line: Callable[[str], None] | None = None,
+    timeout: float | None = None,
 ) -> CmdResult:
     """Ejecuta el comando con streaming: lee stdout línea a línea y llama on_line.
 
     Usa Popen (no run) para emitir cada línea según llega — así el builder se ve
     en directo. El prompt se escribe a stdin en un hilo para no bloquear la lectura
     (evita deadlock si el proceso produce mucho output antes de consumir el stdin).
-    encoding utf-8 explícito: en Windows el modo texto usa cp1252, que no puede
-    codificar las flechas "→" del prompt.
+    Un watchdog mata el proceso si supera `timeout` segundos (evita que un CLI
+    colgado bloquee el ciclo indefinidamente). encoding utf-8 explícito: en Windows
+    el modo texto usa cp1252, que no puede codificar las flechas "→" del prompt.
     """
     full_env = {**os.environ, **env} if env else None
     resolved = [_resolve_exe(argv[0]), *argv[1:]]
@@ -62,6 +64,15 @@ def _default_run(
     writer = threading.Thread(target=_writer, daemon=True)
     writer.start()
 
+    timed_out = {"flag": False}
+    watchdog: threading.Timer | None = None
+    if timeout is not None:
+        def _kill() -> None:
+            timed_out["flag"] = True
+            proc.kill()
+        watchdog = threading.Timer(timeout, _kill)
+        watchdog.start()
+
     lines: list[str] = []
     for raw in proc.stdout:
         line = raw.rstrip("\n")
@@ -69,7 +80,13 @@ def _default_run(
         if on_line is not None:
             on_line(line)
     proc.wait()
+    if watchdog is not None:
+        watchdog.cancel()
     writer.join(timeout=1)
+
+    if timed_out["flag"]:
+        lines.append(f"[orchestra] proceso abortado: superó el timeout de {timeout}s")
+        return CmdResult(returncode=-1, stdout="\n".join(lines))
     return CmdResult(returncode=proc.returncode, stdout="\n".join(lines))
 
 
@@ -99,11 +116,13 @@ class CliExecutor:
         command_template: str,
         *,
         env: dict | None = None,
+        timeout: float | None = 600.0,
         run_cmd: RunCmd = _default_run,
         git_changed: GitChanged = _default_git_changed,
     ) -> None:
         self.command_template = command_template
         self.env = env or {}
+        self.timeout = timeout
         self._run = run_cmd
         self._git_changed = git_changed
 
@@ -161,7 +180,7 @@ class CliExecutor:
 
         result = self._run(
             argv, cwd=repo_root, stdin_text=stdin_text,
-            env=self.env or None, on_line=_on_line,
+            env=self.env or None, on_line=_on_line, timeout=self.timeout,
         )
         files = self._git_changed(repo_root)
         success = result.returncode == 0

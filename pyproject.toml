@@ -12,6 +12,8 @@ dependencies = [
     # CLI + salida.
     "click>=8.1",
     "rich>=13.0",
+    # Edición de config preservando comentarios (orchestra config set).
+    "tomlkit>=0.13",
 ]
 
 # NOTA día 1: el código de routing/pii/config NO importa ninguna de estas deps —

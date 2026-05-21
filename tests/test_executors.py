@@ -73,7 +73,7 @@ def test_cli_build_command_con_prompt_file_escribe_temp(tmp_path):
 def test_cli_execute_captura_stdout_y_files_changed(tmp_path):
     calls = {}
 
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         calls["argv"] = argv
         calls["cwd"] = cwd
         calls["stdin"] = stdin_text
@@ -95,7 +95,7 @@ def test_cli_execute_captura_stdout_y_files_changed(tmp_path):
 
 
 def test_cli_execute_returncode_no_cero_es_fallo(tmp_path):
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         return CmdResult(returncode=1, stdout="boom")
 
     ex = CliExecutor("codex exec -m {model}", run_cmd=fake_run,
@@ -116,7 +116,7 @@ def test_cli_execute_parsea_stream_json_de_claude(tmp_path):
                     "usage": {"input_tokens": 100, "output_tokens": 50}}),
     ])
 
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         return CmdResult(returncode=0, stdout=jsonl)
 
     ex = CliExecutor("claude -p --output-format stream-json", run_cmd=fake_run,
@@ -140,7 +140,7 @@ def test_cli_execute_emite_tool_calls_en_streaming(tmp_path):
                     "usage": {"input_tokens": 10, "output_tokens": 5}}),
     ]
 
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         for ln in jsonl:               # simula el goteo línea a línea del proceso
             if on_line:
                 on_line(ln)
@@ -157,7 +157,7 @@ def test_cli_execute_emite_tool_calls_en_streaming(tmp_path):
 
 
 def test_cli_execute_texto_plano_no_se_parsea(tmp_path):
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         return CmdResult(returncode=0, stdout="salida en texto plano de codex/aider")
 
     ex = CliExecutor("codex exec", run_cmd=fake_run, git_changed=lambda r: [])
@@ -166,6 +166,18 @@ def test_cli_execute_texto_plano_no_se_parsea(tmp_path):
     assert res.content == "salida en texto plano de codex/aider"
     assert res.trace == []
     assert res.cost_usd is None
+
+
+def test_default_run_mata_proceso_colgado_por_timeout(tmp_path):
+    # Proceso real que duerme 10s; con timeout 0.5s el watchdog debe matarlo.
+    import sys
+    from orchestra.core.executors.cli import _default_run
+    res = _default_run(
+        [sys.executable, "-c", "import time; time.sleep(10)"],
+        cwd=tmp_path, stdin_text=None, timeout=0.5,
+    )
+    assert res.returncode == -1
+    assert "timeout" in res.stdout.lower()
 
 
 def test_resolve_exe_usa_shutil_which(monkeypatch):
@@ -181,7 +193,7 @@ def test_resolve_exe_usa_shutil_which(monkeypatch):
 def test_cli_execute_inyecta_env_al_subprocess(tmp_path):
     seen = {}
 
-    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None):
+    def fake_run(argv, *, cwd, stdin_text, env=None, on_line=None, timeout=None):
         seen["env"] = env
         return CmdResult(returncode=0, stdout="ok")
 

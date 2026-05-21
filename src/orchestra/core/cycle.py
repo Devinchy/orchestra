@@ -88,7 +88,10 @@ def run_cycle(
             on_event=on_event,
         )
         artifact = _write_artifact(repo_root, role, slug, res.content)
-        history.append(CycleStep(role, res.provider, res.model, artifact))
+        history.append(CycleStep(
+            role, res.provider, res.model, artifact,
+            cost_usd=res.cost_usd, elapsed_s=res.elapsed_s,
+        ))
         return res
 
     # 1. Asegura que existe la tarea (planner la produce si falta).

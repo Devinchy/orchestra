@@ -146,6 +146,31 @@ def test_init_prepara_un_repo(tmp_path):
     assert "creado" in res.output
 
 
+# ---------- config set ----------
+
+def test_config_set_enruta_al_archivo_correcto(monkeypatch):
+    captured = {}
+
+    def fake_set(path, key, value):
+        captured["path"] = str(path)
+        captured["key"] = key
+        captured["value"] = value
+
+    monkeypatch.setattr(cli.config_edit, "set_value", fake_set)
+    res = CliRunner().invoke(
+        cli.main, ["config", "set", "roles.builder.default_provider", "codex"]
+    )
+    assert res.exit_code == 0, res.output
+    assert captured["key"] == "roles.builder.default_provider"
+    assert captured["value"] == "codex"
+    assert captured["path"].endswith("roles.toml")
+
+
+def test_config_set_raiz_desconocida_falla():
+    res = CliRunner().invoke(cli.main, ["config", "set", "inventado.x", "y"])
+    assert res.exit_code != 0
+
+
 # ---------- config show ----------
 
 def test_config_show_lista_la_config_real():

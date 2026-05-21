@@ -14,9 +14,21 @@ from pathlib import Path
 import click
 
 from orchestra.core import config as cfg
+from orchestra.core import config_edit
 from orchestra.core import cycle as cycle_core
 from orchestra.core import runner
 from orchestra.core import scaffold
+
+# Qué archivo de config edita cada raíz de clave (para `config set`).
+_CONFIG_FILE_BY_ROOT = {
+    "roles": "roles.toml",
+    "providers": "providers.toml",
+    "pii_gate": "routing.toml",
+    "fallback": "routing.toml",
+    "backends": "executors.toml",
+    "builder_backend": "executors.toml",
+    "pricing": "pricing.toml",
+}
 
 # Raíz de la instalación de orchestra (src/orchestra/cli.py → parents[2]).
 ORCHESTRA_ROOT = Path(__file__).resolve().parents[2]
@@ -158,6 +170,7 @@ def cycle_cmd(slug, planner, builder, tester, all_provider, max_iters) -> None:
     click.echo(f"  veredicto final: {result.final_status}")
     click.echo(f"  iteraciones:     {result.iterations}")
     click.echo(f"  parada:          {result.stopped_reason}")
+    click.echo(f"  total:           {result.total_elapsed_s:.1f}s{_fmt_cost(result.total_cost_usd)}")
     click.echo("=" * 50)
     if result.final_status != "PASS":
         raise SystemExit(1)
@@ -204,6 +217,28 @@ def config_show() -> None:
     for prov, backend in c.executors.builder_backend.items():
         via = " (via proxy)" if c.executors.backends[backend].via_proxy else ""
         click.echo(f"  {prov:9} -> {backend}{via}")
+
+
+@config.command(name="set")
+@click.argument("key")
+@click.argument("value")
+def config_set(key: str, value: str) -> None:
+    """Cambia un valor de config preservando comentarios.
+
+    Ej: orchestra config set roles.builder.default_provider codex
+    """
+    root = key.split(".")[0]
+    fname = _CONFIG_FILE_BY_ROOT.get(root)
+    if fname is None:
+        raise click.ClickException(
+            f"no sé en qué archivo vive '{root}'. Raíces válidas: "
+            f"{', '.join(sorted(_CONFIG_FILE_BY_ROOT))}"
+        )
+    try:
+        config_edit.set_value(CONFIG_DIR / fname, key, value)
+    except Exception as e:  # noqa: BLE001
+        raise click.ClickException(str(e)) from e
+    click.echo(f"OK: {key} = {value}  ({fname})")
 
 
 if __name__ == "__main__":

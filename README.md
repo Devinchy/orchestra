@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–13 completados
+## Estado: días 1–14 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **144 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **153 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -233,12 +233,16 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 
 > Decisión de alcance: la **mitad interactiva** de "deploy" (generar `.claude/` para Claude Code) **se descarta** — ataría orchestra a un CLI concreto, rompiendo el agnosticismo. El conocimiento del equipo se aplica donde importa (el ciclo orquestado, vía inyección por rol); lo interactivo se hace con los CLIs directamente.
 
+**Día 14 — pulido:**
+- ✅ **Coste/tiempo agregado del ciclo**: `CycleResult.total_cost_usd` + `total_elapsed_s`; el CLI los muestra al cerrar el ciclo. **+2 tests.**
+- ✅ **Timeout del builder CLI**: un watchdog mata el proceso si supera `timeout` (default 600s) — un `claude -p` colgado ya no bloquea el ciclo. **+1 test** (proceso real que duerme, abortado en 0.5s).
+- ✅ **`orchestra config set <key> <value>`** (tomlkit): cambia config **preservando comentarios** (`config set roles.builder.default_provider codex`). Solo modifica claves existentes. **+4 tests.**
+
 ## Lo que viene
 
 | Hito | Entrega |
 |---|---|
 | **Engram** (en Linux) | Binario standalone `engram mcp` (nativo Linux/WSL) + protocolo + builder por CLI nativo. Se hará al clonar en Fedora. |
-| `config set` | Edición de config preservando comentarios (requiere `tomlkit`). |
 | **Verificación real** del resto | codex/aider/deepseek/qwen/gemini contra sus CLIs y keys (claude ya verificado end-to-end). |
 
 > El sistema está **funcionalmente completo y verificado con Claude**: 3 roles,
