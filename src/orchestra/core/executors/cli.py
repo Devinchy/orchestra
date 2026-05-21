@@ -15,6 +15,7 @@ import tempfile
 from pathlib import Path
 from typing import Callable
 
+from orchestra.core.executors import claude_stream
 from orchestra.core.executors.base import CmdResult, ExecutionResult
 
 
@@ -125,8 +126,23 @@ class CliExecutor:
         argv, stdin_text, _ = self.build_command(model, prompt)
         result = self._run(argv, cwd=repo_root, stdin_text=stdin_text, env=self.env or None)
         files = self._git_changed(repo_root)
+        success = result.returncode == 0
+
+        # Si el CLI emitió stream-json (Claude Code), extrae texto final + traza +
+        # usage + coste real. Otros CLIs (codex/aider en texto plano) → stdout tal cual.
+        lines = result.stdout.splitlines()
+        if claude_stream.looks_like_stream_json(lines):
+            parsed = claude_stream.parse_stream(lines)
+            return ExecutionResult(
+                content=parsed.result_text or result.stdout,
+                files_changed=files,
+                success=success,
+                usage=parsed.usage,
+                cost_usd=parsed.cost_usd,
+                trace=parsed.trace,
+            )
         return ExecutionResult(
             content=result.stdout,
             files_changed=files,
-            success=result.returncode == 0,
+            success=success,
         )

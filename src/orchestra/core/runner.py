@@ -19,7 +19,7 @@ from pathlib import Path
 from typing import Callable
 
 from orchestra.core import invoker as _invoker
-from orchestra.core import pii, prompt_builder, routing, transcript
+from orchestra.core import cost, pii, prompt_builder, routing, transcript
 from orchestra.core.config import OrchestraConfig
 from orchestra.core.executors.base import Executor
 from orchestra.core.executors.cli import CliExecutor
@@ -51,6 +51,8 @@ class RunResult:
     files_changed: list[str] = field(default_factory=list)
     elapsed_s: float = 0.0
     usage: dict = field(default_factory=dict)
+    cost_usd: float | None = None
+    trace: list = field(default_factory=list)
 
 
 def _select_executor(
@@ -189,8 +191,14 @@ def run_role(
             f"toda la cadena de fallback falló para el rol '{role}': " + " | ".join(errors)
         )
     elapsed_s = time.monotonic() - start_t
+    # Coste real si el executor lo reporta (builder vía stream-json); si no, estimado.
+    cost_usd = (
+        result.cost_usd if result.cost_usd is not None
+        else cost.estimate_cost(eff_model, result.usage, config.pricing)
+    )
     _emit("role_done", role=role, provider=eff_provider, model=eff_model,
-          elapsed_s=elapsed_s, usage=result.usage, gate_action=decision.action)
+          elapsed_s=elapsed_s, usage=result.usage, cost_usd=cost_usd,
+          trace=result.trace, gate_action=decision.action)
 
     # 7. Captura de transcript.
     tpath = transcript.append_transcript(repo_root, slug, role, eff_provider, result.content)
@@ -207,4 +215,6 @@ def run_role(
         files_changed=result.files_changed,
         elapsed_s=elapsed_s,
         usage=result.usage,
+        cost_usd=cost_usd,
+        trace=result.trace,
     )

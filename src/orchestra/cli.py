@@ -37,13 +37,22 @@ def _fmt_tokens(usage: dict) -> str:
     return f" · {n/1000:.1f}k tok" if n >= 1000 else f" · {n} tok"
 
 
+def _fmt_cost(cost_usd) -> str:
+    return "" if cost_usd is None else f" · ${cost_usd:.4f}"
+
+
 def _progress(event: str, **d) -> None:
     """Imprime el progreso en vivo (ASCII, sin depender de la codificación de consola)."""
     if event == "role_start":
         click.echo(f"  > {d['role']} ...", nl=False)
     elif event == "role_done":
         click.echo(f"  {d['provider']}/{d['model']}  "
-                   f"{d['elapsed_s']:.1f}s{_fmt_tokens(d.get('usage', {}))}")
+                   f"{d['elapsed_s']:.1f}s{_fmt_tokens(d.get('usage', {}))}"
+                   f"{_fmt_cost(d.get('cost_usd'))}")
+        # Traza del builder: qué herramientas usó (de stream-json).
+        for t in d.get("trace", []):
+            extra = f" {t.summary}" if getattr(t, "summary", "") else ""
+            click.echo(f"      . {t.tool}{extra}")
 
 
 @main.command()
@@ -80,7 +89,8 @@ def run(role: str, slug: str, provider: str | None, model: str | None) -> None:
         click.echo(f"              {result.gate_reason}")
     if result.pii_paths:
         click.echo(f"  paths PII:  {', '.join(result.pii_paths)}")
-    click.echo(f"  duración:   {result.elapsed_s:.1f}s{_fmt_tokens(result.usage)}")
+    click.echo(f"  duración:   {result.elapsed_s:.1f}s{_fmt_tokens(result.usage)}"
+               f"{_fmt_cost(result.cost_usd)}")
     if result.files_changed:
         click.echo(f"  archivos:   {', '.join(result.files_changed)}")
     click.echo(f"  transcript: {result.transcript_path}")

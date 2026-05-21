@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–9 completados
+## Estado: días 1–10 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **117 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **130 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -203,22 +203,30 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 - ✅ **`files_changed`** en el resumen de `run` (qué tocó el builder, vía `git diff`).
 - ✅ Callback `on_event` en `runner` y `cycle` (start/done por rol) — inyectable y testeado.
 
-> Pendiente de observabilidad: traza paso a paso del builder (hoy se captura el
-> stdout final de `claude -p`, no sus tool-calls internos — requiere `--output-format
-> stream-json`). Y coste estimado en €/$ (los tokens ya están).
+**Día 10 — traza del builder + coste:**
+- ✅ **Coste estimado** por rol/ciclo: `config/pricing.toml` ($/Mtok por modelo) + `core/cost.py`. El CLI muestra `$x.xxxx` por rol (estimado desde tokens en el proxy). **+5 tests.**
+- ✅ **Traza del builder + coste real**: el backend `claude_code` usa `--output-format stream-json --verbose`; `core/executors/claude_stream.py` extrae el texto final (hand-off limpio), la **traza de tool-calls** (`Write src/x.py`, `Bash pytest`…), el usage y el **coste real** que reporta Claude. **+8 tests.**
+- ✅ El CLI imprime la traza bajo cada rol builder; codex/aider (texto plano) no se parsean (fallback automático).
+
+```
+  > builder ...  claude/claude-sonnet-4-6  78.3s · 1.5k tok · $0.0418
+      . Write tests/test_slug.py
+      . Write src/slug.py
+      . Bash pytest -q
+```
 
 ## Lo que viene
 
 | Hito | Entrega |
 |---|---|
-| **Verificación real** | Levantar el proxy con keys reales y correr un `orchestra cycle` end-to-end con claude/codex/aider instalados. Es el siguiente paso natural — fuera del alcance de este entorno (sin CLIs ni keys). |
+| **Engram** | Instalar el binario + cablear el MCP para memoria persistente cross-model. |
 | `config set` | Edición de config preservando comentarios (requiere `tomlkit`). |
-| Pulido | Logging estructurado, métricas de coste por proveedor, `--dry-run`. |
+| **Verificación real** del resto | codex/aider/deepseek/qwen/gemini contra sus CLIs y keys (claude ya verificado end-to-end). |
 
-> El sistema está **funcionalmente completo**: 3 roles, rotación de modelos por rol
-> entre los **5 proveedores**, gate PII enforced (con re-evaluación en cada fallback),
-> routing del veredicto del tester, ejecución real delegada a CLIs agénticos, y
-> fallback automático por caída de proveedor. Todo construido test-first.
+> El sistema está **funcionalmente completo y verificado con Claude**: 3 roles,
+> rotación por rol entre 5 proveedores, gate PII enforced (re-evaluado en cada
+> fallback), routing del veredicto, ejecución real delegada a CLIs, fallback
+> automático, y observabilidad (progreso en vivo, métricas, coste, traza del builder).
 
 ## Requisitos
 

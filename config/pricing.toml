@@ -1,0 +1,48 @@
+# Tarifas por modelo, en USD por millón de tokens (input / output).
+# Sirven para ESTIMAR el coste de cada llamada por proxy (planner/tester) y, vía
+# stream-json, del builder por CLI. AJUSTA a las tarifas reales de tu proveedor —
+# estos son valores aproximados de referencia.
+#
+# El nombre es el `model_name` del proxy (igual que en providers.toml/litellm.yaml).
+# Si un modelo no está aquí, el coste se reporta como desconocido (no se inventa).
+
+[pricing.claude-opus-4-7]
+input = 15.0
+output = 75.0
+
+[pricing.claude-sonnet-4-6]
+input = 3.0
+output = 15.0
+
+[pricing.claude-haiku-4-5]
+input = 0.80
+output = 4.0
+
+[pricing.gpt-5-codex]
+input = 1.25
+output = 10.0
+
+[pricing.gpt-5]
+input = 1.25
+output = 10.0
+
+[pricing.deepseek-coder]
+input = 0.28
+output = 0.42
+
+[pricing.deepseek-chat]
+input = 0.28
+output = 0.42
+
+[pricing."gemini-2.5-pro"]
+input = 1.25
+output = 10.0
+
+[pricing."gemini-2.5-flash"]
+input = 0.30
+output = 2.50
+
+# qwen3-coder corre local (Ollama): coste de API cero.
+[pricing.qwen3-coder]
+input = 0.0
+output = 0.0

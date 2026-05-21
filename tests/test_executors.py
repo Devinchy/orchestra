@@ -106,6 +106,41 @@ def test_cli_execute_returncode_no_cero_es_fallo(tmp_path):
     assert "boom" in res.content
 
 
+def test_cli_execute_parsea_stream_json_de_claude(tmp_path):
+    import json
+    jsonl = "\n".join([
+        json.dumps({"type": "assistant", "message": {"content": [
+            {"type": "tool_use", "name": "Write", "input": {"file_path": "src/x.py"}}]}}),
+        json.dumps({"type": "result", "subtype": "success", "result": "hecho",
+                    "total_cost_usd": 0.01,
+                    "usage": {"input_tokens": 100, "output_tokens": 50}}),
+    ])
+
+    def fake_run(argv, *, cwd, stdin_text, env=None):
+        return CmdResult(returncode=0, stdout=jsonl)
+
+    ex = CliExecutor("claude -p --output-format stream-json", run_cmd=fake_run,
+                     git_changed=lambda r: ["src/x.py"])
+    res = ex.execute("p", model="claude-sonnet-4-6",
+                     repo_root=tmp_path, role="builder", slug="d")
+    assert res.content == "hecho"               # texto final, no el JSONL crudo
+    assert res.cost_usd == 0.01                 # coste real de claude
+    assert res.usage["completion_tokens"] == 50
+    assert [t.tool for t in res.trace] == ["Write"]
+
+
+def test_cli_execute_texto_plano_no_se_parsea(tmp_path):
+    def fake_run(argv, *, cwd, stdin_text, env=None):
+        return CmdResult(returncode=0, stdout="salida en texto plano de codex/aider")
+
+    ex = CliExecutor("codex exec", run_cmd=fake_run, git_changed=lambda r: [])
+    res = ex.execute("p", model="gpt-5-codex",
+                     repo_root=tmp_path, role="builder", slug="d")
+    assert res.content == "salida en texto plano de codex/aider"
+    assert res.trace == []
+    assert res.cost_usd is None
+
+
 def test_resolve_exe_usa_shutil_which(monkeypatch):
     # En Windows, claude es claude.CMD; _resolve_exe debe devolver la ruta resuelta.
     from orchestra.core.executors import cli as cli_mod

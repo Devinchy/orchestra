@@ -9,7 +9,9 @@
 # {prompt_file}, el prompt se envía por stdin.
 
 [backends.claude_code]
-command = "claude -p --model {model} --permission-mode acceptEdits"
+# stream-json + verbose: emite la traza de tool-calls y el coste real, que orchestra
+# parsea para observabilidad. El texto final se extrae como resultado del builder.
+command = "claude -p --model {model} --permission-mode acceptEdits --output-format stream-json --verbose"
 
 [backends.codex_cli]
 command = "codex exec -m {model} --full-auto"

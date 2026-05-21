@@ -66,6 +66,12 @@ class RoutingConfig:
 
 
 @dataclass(frozen=True)
+class PriceSpec:
+    input: float    # USD por millón de tokens de entrada
+    output: float   # USD por millón de tokens de salida
+
+
+@dataclass(frozen=True)
 class BackendSpec:
     name: str
     command_template: str
@@ -89,6 +95,7 @@ class OrchestraConfig:
     roles: dict[str, RoleSpec]
     routing: RoutingConfig
     executors: ExecutorConfig = field(default_factory=ExecutorConfig)
+    pricing: dict[str, PriceSpec] = field(default_factory=dict)
 
 
 def _load_toml(path: Path) -> dict:
@@ -168,6 +175,16 @@ def _parse_executors(raw: dict) -> ExecutorConfig:
     )
 
 
+def _parse_pricing(raw: dict) -> dict[str, PriceSpec]:
+    out: dict[str, PriceSpec] = {}
+    for model, spec in raw.get("pricing", {}).items():
+        try:
+            out[model] = PriceSpec(input=float(spec["input"]), output=float(spec["output"]))
+        except KeyError as e:
+            raise ConfigError(f"pricing '{model}': falta el campo {e}") from e
+    return out
+
+
 def _validate(config: OrchestraConfig) -> None:
     providers = config.providers
 
@@ -239,11 +256,15 @@ def load_config(config_dir: Path) -> OrchestraConfig:
         if executors_path.exists()
         else ExecutorConfig()
     )
+    # pricing.toml también opcional — si falta, el coste se reporta como desconocido.
+    pricing_path = config_dir / "pricing.toml"
+    pricing = _parse_pricing(_load_toml(pricing_path)) if pricing_path.exists() else {}
     config = OrchestraConfig(
         providers=_parse_providers(_load_toml(config_dir / "providers.toml")),
         roles=_parse_roles(_load_toml(config_dir / "roles.toml")),
         routing=_parse_routing(_load_toml(config_dir / "routing.toml")),
         executors=executors,
+        pricing=pricing,
     )
     _validate(config)
     return config

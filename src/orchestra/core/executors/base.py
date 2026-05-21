@@ -24,7 +24,9 @@ class ExecutionResult:
     files_changed: list[str] = field(default_factory=list)
     tests_output: str | None = None
     success: bool = True
-    usage: dict = field(default_factory=dict)   # tokens (proxy); vacío en CLI
+    usage: dict = field(default_factory=dict)   # tokens (proxy o stream-json del builder)
+    cost_usd: float | None = None               # coste real (stream-json); None si se estima
+    trace: list = field(default_factory=list)   # tool-calls del builder (ToolCall)
 
 
 class Executor(Protocol):
