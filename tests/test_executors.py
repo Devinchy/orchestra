@@ -96,6 +96,16 @@ def test_cli_execute_returncode_no_cero_es_fallo(tmp_path):
     assert "boom" in res.content
 
 
+def test_resolve_exe_usa_shutil_which(monkeypatch):
+    # En Windows, claude es claude.CMD; _resolve_exe debe devolver la ruta resuelta.
+    from orchestra.core.executors import cli as cli_mod
+    monkeypatch.setattr(cli_mod.shutil, "which",
+                        lambda name: r"C:\npm\claude.CMD" if name == "claude" else None)
+    assert cli_mod._resolve_exe("claude") == r"C:\npm\claude.CMD"
+    # Si no se encuentra, devuelve el nombre original (para un error claro).
+    assert cli_mod._resolve_exe("inexistente") == "inexistente"
+
+
 def test_cli_execute_inyecta_env_al_subprocess(tmp_path):
     seen = {}
 

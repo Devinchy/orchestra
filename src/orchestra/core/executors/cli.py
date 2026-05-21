@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import os
 import shlex
+import shutil
 import subprocess
 import tempfile
 from pathlib import Path
@@ -17,25 +18,38 @@ from typing import Callable
 from orchestra.core.executors.base import CmdResult, ExecutionResult
 
 
+def _resolve_exe(name: str) -> str:
+    """Resuelve el ejecutable respetando PATHEXT.
+
+    En Windows, npm instala los CLIs como shims `.CMD` (claude.CMD, aider, etc.),
+    y subprocess no los encuentra por el nombre "a secas" (busca .exe). shutil.which
+    sí los resuelve. Devuelve la ruta completa, o el nombre original si no se halla
+    (para que el error sea claro).
+    """
+    return shutil.which(name) or name
+
+
 def _default_run(
     argv: list[str], *, cwd: Path, stdin_text: str | None, env: dict | None = None
 ) -> CmdResult:
     full_env = {**os.environ, **env} if env else None
+    resolved = [_resolve_exe(argv[0]), *argv[1:]]
     proc = subprocess.run(
-        argv, cwd=str(cwd), input=stdin_text,
+        resolved, cwd=str(cwd), input=stdin_text,
         capture_output=True, text=True, env=full_env,
     )
     return CmdResult(returncode=proc.returncode, stdout=(proc.stdout or "") + (proc.stderr or ""))
 
 
 def _default_git_changed(repo_root: Path) -> list[str]:
+    git = _resolve_exe("git")
     try:
         tracked = subprocess.run(
-            ["git", "diff", "--name-only"], cwd=str(repo_root),
+            [git, "diff", "--name-only"], cwd=str(repo_root),
             capture_output=True, text=True,
         ).stdout.splitlines()
         untracked = subprocess.run(
-            ["git", "ls-files", "--others", "--exclude-standard"], cwd=str(repo_root),
+            [git, "ls-files", "--others", "--exclude-standard"], cwd=str(repo_root),
             capture_output=True, text=True,
         ).stdout.splitlines()
         return [p for p in (*tracked, *untracked) if p.strip()]
