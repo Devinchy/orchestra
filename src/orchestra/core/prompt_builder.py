@@ -97,6 +97,13 @@ def build_prompt(
     if engram is not None:
         parts.append(_section("SKILL — engram-memory", strip_frontmatter(engram)))
 
+    # Skills disciplinarias asignadas a este rol (security-review, self-critique…).
+    skills_dir = orchestra_root / "src" / "orchestra" / "skills"
+    for skill in role.skills:
+        body = _read(skills_dir / f"{skill}.md")
+        if body is not None:
+            parts.append(_section(f"SKILL — {skill}", strip_frontmatter(body)))
+
     # Estado del repo target (opcionales).
     for title, rel in [
         ("REPO — CLAUDE.md", "CLAUDE.md"),

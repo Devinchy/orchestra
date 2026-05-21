@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–11 completados
+## Estado: días 1–12 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **133 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **135 tests verdes.**
 
 > **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
 > builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
@@ -220,6 +220,13 @@ just proxy                  # litellm --config litellm.yaml --port 4000
       . Bash pytest -q
     done claude/claude-sonnet-4-6  78.3s · 1.5k tok · $0.0418
 ```
+
+**Día 12 — conocimiento del equipo: skills disciplinarias por rol:**
+- ✅ Mecanismo `skills = [...]` en `roles.toml`; el `prompt_builder` inyecta el contenido de cada skill al rol que la declara (estático, no auto-discovery — encaja con el modelo agnóstico). **+2 tests.**
+- ✅ 4 skills propias de orchestra (concisas, agnósticas, sin maquinaria de Claude Code): `security-review`, `rgpd-review` → **tester**; `self-critique` → **planner**; `systematic-debugging` → **builder`.
+- Es el primer trozo de **paridad con dev-config traído "de forma correcta"**: el *conocimiento* (texto) se inyecta a cualquier modelo; el *mecanismo* de auto-discovery de Claude Code no se reinventa.
+
+> Pendiente de paridad: las skills de flujo interactivo (brainstorming, worktrees…) no aplican al ciclo orquestado; el resto (MCPs, CI, GGA, templates, CLAUDE.md) se traerá vía un futuro `orchestra deploy` que las despliega al repo target. Ver el inventario de paridad.
 
 ## Lo que viene
 

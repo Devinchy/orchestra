@@ -47,6 +47,24 @@ def test_incluye_contrato_del_rol(tmp_path):
     assert "ciclo TDD completo" in prompt   # del builder.md real
 
 
+def test_tester_inyecta_sus_skills(tmp_path):
+    repo = _make_repo(tmp_path)
+    prompt = pb.build_prompt(_config(), "tester", "demo",
+                             repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
+    assert "SKILL — security-review" in prompt
+    assert "SKILL — rgpd-review" in prompt
+    assert "OWASP" in prompt              # contenido real de security-review
+
+
+def test_builder_inyecta_systematic_debugging_no_las_del_tester(tmp_path):
+    repo = _make_repo(tmp_path)
+    prompt = pb.build_prompt(_config(), "builder", "demo",
+                             repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
+    assert "SKILL — systematic-debugging" in prompt
+    # el builder NO carga las skills del tester
+    assert "SKILL — security-review" not in prompt
+
+
 def test_planner_no_requiere_task_file(tmp_path):
     # El planner PRODUCE la tarea: build_prompt no debe exigir task_<slug>.md.
     (tmp_path / "progress").mkdir()

@@ -49,6 +49,7 @@ class RoleSpec:
     default_provider: str
     default_model: str
     tools: list[str]
+    skills: list[str] = field(default_factory=list)   # skills disciplinarias inyectadas al rol
 
 
 @dataclass(frozen=True)
@@ -134,6 +135,7 @@ def _parse_roles(raw: dict) -> dict[str, RoleSpec]:
                 default_provider=spec["default_provider"],
                 default_model=spec["default_model"],
                 tools=list(spec["tools"]),
+                skills=list(spec.get("skills", [])),
             )
         except KeyError as e:
             raise ConfigError(f"rol '{name}': falta el campo {e}") from e

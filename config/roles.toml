@@ -17,15 +17,18 @@ prompt = "src/orchestra/roles/planner.md"
 default_provider = "claude"
 default_model = "claude-opus-4-7"               # razonamiento: modelo potente
 tools = ["read", "grep", "glob", "bash_safe"]   # solo lee + escribe progress/, no edita código
+skills = ["self-critique"]                      # valida la tarea (CAs verificables) antes de emitir
 
 [roles.builder]
 prompt = "src/orchestra/roles/builder.md"
 default_provider = "claude"
 default_model = "claude-sonnet-4-6"             # ejecución: modelo económico
 tools = ["read", "edit", "write", "bash", "grep", "glob"]
+skills = ["systematic-debugging"]               # causa raíz antes de fix si fallan tests
 
 [roles.tester]
 prompt = "src/orchestra/roles/tester.md"
 default_provider = "claude"
 default_model = "claude-opus-4-7"               # razonamiento/veredicto: modelo potente
 tools = ["read", "grep", "glob", "bash_test"]   # read-only + runners de test
+skills = ["security-review", "rgpd-review"]     # OWASP + PII al revisar el código del builder
