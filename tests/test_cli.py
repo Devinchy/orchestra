@@ -20,6 +20,22 @@ def _fake_result(provider="claude", model="claude-sonnet-4-6", action="pass"):
     )
 
 
+def test_run_summary_muestra_duracion_archivos_y_tokens(monkeypatch):
+    def fake(config, role, slug, **kw):
+        return RunResult(
+            role="builder", provider="claude", model="claude-sonnet-4-6",
+            gate_action="pass", gate_reason="", pii_paths=[], content="x",
+            transcript_path=Path("t"), files_changed=["src/a.py"],
+            elapsed_s=3.5, usage={"completion_tokens": 1850},
+        )
+    monkeypatch.setattr(cli.runner, "run_role", fake)
+    res = CliRunner().invoke(cli.main, ["run", "builder", "--slug", "demo"])
+    assert res.exit_code == 0, res.output
+    assert "duración" in res.output
+    assert "src/a.py" in res.output
+    assert "tok" in res.output
+
+
 def test_help_lista_comandos():
     res = CliRunner().invoke(cli.main, ["--help"])
     assert res.exit_code == 0

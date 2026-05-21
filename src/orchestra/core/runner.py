@@ -13,6 +13,7 @@ El Executor se auto-selecciona por rol/proveedor; inyectable para tests.
 """
 from __future__ import annotations
 
+import time
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Callable
@@ -48,6 +49,8 @@ class RunResult:
     content: str
     transcript_path: Path
     files_changed: list[str] = field(default_factory=list)
+    elapsed_s: float = 0.0
+    usage: dict = field(default_factory=dict)
 
 
 def _select_executor(
@@ -107,9 +110,19 @@ def run_role(
     executor_factory: ExecutorFactory | None = None,
     run_tests_fn: Callable[..., test_runner.TestRun] = test_runner.run_tests,
     patterns: list[str] | None = None,
+    on_event: Callable[..., None] | None = None,
 ) -> RunResult:
-    """Ejecuta un rol sobre una tarea, end-to-end, con fallback por caída de proveedor."""
+    """Ejecuta un rol sobre una tarea, end-to-end, con fallback por caída de proveedor.
+
+    on_event(event, **data) recibe eventos de progreso en vivo:
+      "role_start" {role}
+      "role_done"  {role, provider, model, elapsed_s, usage, gate_action}
+    """
     repo_root = Path(repo_root)
+
+    def _emit(event: str, **data) -> None:
+        if on_event is not None:
+            on_event(event, **data)
 
     # 1. Modelo según rol + overrides.
     provider, model = routing.resolve_role_model(
@@ -156,6 +169,8 @@ def run_role(
         )
 
     # 6. Intenta la cadena: gate PII por provider, ejecuta, fallback si cae (transitorio).
+    _emit("role_start", role=role)
+    start_t = time.monotonic()
     errors: list[str] = []
     for i, prov in enumerate(chain):
         model_p = model if i == 0 else config.providers[prov].default_model
@@ -173,6 +188,9 @@ def run_role(
         raise RunnerError(
             f"toda la cadena de fallback falló para el rol '{role}': " + " | ".join(errors)
         )
+    elapsed_s = time.monotonic() - start_t
+    _emit("role_done", role=role, provider=eff_provider, model=eff_model,
+          elapsed_s=elapsed_s, usage=result.usage, gate_action=decision.action)
 
     # 7. Captura de transcript.
     tpath = transcript.append_transcript(repo_root, slug, role, eff_provider, result.content)
@@ -187,4 +205,6 @@ def run_role(
         content=result.content,
         transcript_path=tpath,
         files_changed=result.files_changed,
+        elapsed_s=elapsed_s,
+        usage=result.usage,
     )

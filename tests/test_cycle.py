@@ -169,3 +169,21 @@ def test_pasa_overrides_por_rol(tmp_path):
     assert seen["planner"] == "codex"
     assert seen["builder"] == "claude"
     assert seen["tester"] == "codex"
+
+
+def test_cycle_reenvia_on_event_a_cada_rol(tmp_path):
+    repo = _repo(tmp_path)
+    seen = {}
+
+    def run_fn(config, role, slug, **kw):
+        seen[role] = kw.get("on_event")
+        content = ("# Tarea" if role == "planner"
+                   else "impl" if role == "builder"
+                   else "Veredicto: PASS\nVolver a: ninguno")
+        return _result(role, content)
+
+    cb = lambda *a, **k: None  # noqa: E731
+    cycle.run_cycle(_config(), "demo", run_fn=run_fn, on_event=cb, **_common_kwargs(repo))
+    assert seen["planner"] is cb
+    assert seen["builder"] is cb
+    assert seen["tester"] is cb

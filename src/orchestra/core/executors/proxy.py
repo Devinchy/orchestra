@@ -39,4 +39,7 @@ class ProxyExecutor:
             proxy_url=self._proxy_url,
             api_key=self._api_key,
         )
-        return ExecutionResult(content=result.content, files_changed=[], success=True)
+        return ExecutionResult(
+            content=result.content, files_changed=[], success=True,
+            usage=result.usage,
+        )

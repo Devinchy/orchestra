@@ -59,6 +59,7 @@ def run_cycle(
     model_overrides: dict[str, str] | None = None,
     run_fn: Callable[..., runner.RunResult] = runner.run_role,
     max_iters: int = 3,
+    on_event: Callable[..., None] | None = None,
 ) -> CycleResult:
     repo_root = Path(repo_root)
     provider_overrides = provider_overrides or {}
@@ -72,6 +73,7 @@ def run_cycle(
             proxy_url=proxy_url, api_key=api_key,
             provider_override=provider_overrides.get(role),
             model_override=model_overrides.get(role),
+            on_event=on_event,
         )
         artifact = _write_artifact(repo_root, role, slug, res.content)
         history.append(CycleStep(role, res.provider, res.model, artifact))

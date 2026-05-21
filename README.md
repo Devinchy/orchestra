@@ -68,9 +68,14 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–8 completados
+## Estado: días 1–9 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **111 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **117 tests verdes.**
+
+> **Verificado en vivo contra Claude real** (proxy + CLI): planner genera tarea,
+> builder edita el repo y deja tests en verde, tester valida, ciclo cierra en PASS.
+> Por el camino se arreglaron 3 bugs de Windows (encoding del banner litellm,
+> resolución de `claude.CMD`, utf-8 en stdin de subprocess).
 
 **Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
@@ -191,6 +196,16 @@ cp .env.example .env        # rellena ANTHROPIC_API_KEY, OPENAI_API_KEY, etc.
 just proxy                  # litellm --config litellm.yaml --port 4000
 # verifica:  curl http://localhost:4000/health
 ```
+
+**Día 9 — observabilidad:**
+- ✅ **Progreso en vivo**: el CLI imprime cada rol según arranca/termina (`> builder ... claude/claude-sonnet-4-6  3.5s · 1.9k tok`), en ASCII (no depende de la codificación de consola).
+- ✅ **Métricas**: tokens y latencia por rol propagados (`ExecutionResult.usage` → `RunResult.usage/elapsed_s`); el proxy los rellena, el CLI los muestra.
+- ✅ **`files_changed`** en el resumen de `run` (qué tocó el builder, vía `git diff`).
+- ✅ Callback `on_event` en `runner` y `cycle` (start/done por rol) — inyectable y testeado.
+
+> Pendiente de observabilidad: traza paso a paso del builder (hoy se captura el
+> stdout final de `claude -p`, no sus tool-calls internos — requiere `--output-format
+> stream-json`). Y coste estimado en €/$ (los tokens ya están).
 
 ## Lo que viene
 

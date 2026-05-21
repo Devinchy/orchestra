@@ -24,6 +24,7 @@ class ExecutionResult:
     files_changed: list[str] = field(default_factory=list)
     tests_output: str | None = None
     success: bool = True
+    usage: dict = field(default_factory=dict)   # tokens (proxy); vacío en CLI
 
 
 class Executor(Protocol):

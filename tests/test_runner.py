@@ -128,6 +128,43 @@ def test_tester_inyecta_output_de_tests_en_el_prompt(tmp_path):
     assert "2 passed, 1 failed" in rec["prompt"]
 
 
+# ---------- observabilidad: eventos + métricas ----------
+
+class UsageExecutor:
+    def execute(self, prompt, *, model, repo_root, role, slug):
+        return ExecutionResult(content="ok", usage={"completion_tokens": 42})
+
+
+def test_run_role_emite_eventos_start_y_done(tmp_path):
+    repo = _make_repo(tmp_path, task_body="# Tarea\n\n`src/x.py`. CA-1.")
+    events = []
+    runner.run_role(
+        _config(), "builder", "demo",
+        repo_root=repo, orchestra_root=ORCHESTRA_ROOT,
+        proxy_url="http://x", api_key="k",
+        executor=UsageExecutor(),
+        on_event=lambda ev, **d: events.append((ev, d)),
+    )
+    assert [e[0] for e in events] == ["role_start", "role_done"]
+    done = events[1][1]
+    assert done["role"] == "builder"
+    assert done["usage"]["completion_tokens"] == 42
+    assert done["elapsed_s"] >= 0
+    assert done["gate_action"] == "pass"
+
+
+def test_run_role_devuelve_usage_y_elapsed_en_runresult(tmp_path):
+    repo = _make_repo(tmp_path, task_body="# Tarea\n\n`src/x.py`. CA-1.")
+    res = runner.run_role(
+        _config(), "builder", "demo",
+        repo_root=repo, orchestra_root=ORCHESTRA_ROOT,
+        proxy_url="http://x", api_key="k",
+        executor=UsageExecutor(),
+    )
+    assert res.usage["completion_tokens"] == 42
+    assert res.elapsed_s >= 0
+
+
 # ---------- selección de executor ----------
 
 def test_select_executor_builder_codex_es_cli():

@@ -31,6 +31,16 @@ def test_proxy_executor_devuelve_content_del_invoker():
     assert res.success is True
 
 
+def test_proxy_executor_propaga_usage():
+    def fake_invoke(messages, *, model, proxy_url, api_key, tools=None, **kw):
+        return InvocationResult(content="x", model=model,
+                                usage={"prompt_tokens": 50, "completion_tokens": 12})
+
+    ex = ProxyExecutor(proxy_url="http://x", api_key="k", invoke_fn=fake_invoke)
+    res = ex.execute("p", model="m", repo_root=Path("."), role="planner", slug="d")
+    assert res.usage["completion_tokens"] == 12
+
+
 # ---------- CliExecutor: construcción del comando ----------
 
 def test_cli_build_command_sustituye_model_y_usa_stdin():

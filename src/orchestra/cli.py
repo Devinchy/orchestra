@@ -30,6 +30,22 @@ def main() -> None:
     """orchestra — orquestador multi-modelo del ciclo TDD (planner/builder/tester)."""
 
 
+def _fmt_tokens(usage: dict) -> str:
+    n = usage.get("completion_tokens") or usage.get("total_tokens")
+    if not n:
+        return ""
+    return f" · {n/1000:.1f}k tok" if n >= 1000 else f" · {n} tok"
+
+
+def _progress(event: str, **d) -> None:
+    """Imprime el progreso en vivo (ASCII, sin depender de la codificación de consola)."""
+    if event == "role_start":
+        click.echo(f"  > {d['role']} ...", nl=False)
+    elif event == "role_done":
+        click.echo(f"  {d['provider']}/{d['model']}  "
+                   f"{d['elapsed_s']:.1f}s{_fmt_tokens(d.get('usage', {}))}")
+
+
 @main.command()
 @click.argument("role")
 @click.option("--slug", required=True, help="Slug de la tarea (progress/task_<slug>.md).")
@@ -50,11 +66,12 @@ def run(role: str, slug: str, provider: str | None, model: str | None) -> None:
             api_key=api_key,
             provider_override=provider,
             model_override=model,
+            on_event=_progress,
         )
     except Exception as e:  # noqa: BLE001 — UX: mensaje limpio, no traceback
         raise click.ClickException(str(e)) from e
 
-    click.echo("─" * 50)
+    click.echo("-" * 50)
     click.echo(f"  rol:        {result.role}")
     click.echo(f"  proveedor:  {result.provider}")
     click.echo(f"  modelo:     {result.model}")
@@ -63,8 +80,11 @@ def run(role: str, slug: str, provider: str | None, model: str | None) -> None:
         click.echo(f"              {result.gate_reason}")
     if result.pii_paths:
         click.echo(f"  paths PII:  {', '.join(result.pii_paths)}")
+    click.echo(f"  duración:   {result.elapsed_s:.1f}s{_fmt_tokens(result.usage)}")
+    if result.files_changed:
+        click.echo(f"  archivos:   {', '.join(result.files_changed)}")
     click.echo(f"  transcript: {result.transcript_path}")
-    click.echo("─" * 50)
+    click.echo("-" * 50)
 
 
 @main.command(name="cycle")
@@ -94,6 +114,7 @@ def cycle_cmd(slug, planner, builder, tester, all_provider, max_iters) -> None:
             repo_root=Path.cwd(), orchestra_root=ORCHESTRA_ROOT,
             proxy_url=proxy_url, api_key=api_key,
             provider_overrides=overrides, max_iters=max_iters,
+            on_event=_progress,
         )
     except Exception as e:  # noqa: BLE001
         raise click.ClickException(str(e)) from e
