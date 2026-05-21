@@ -63,7 +63,7 @@ def test_cli_build_command_con_prompt_file_escribe_temp(tmp_path):
 def test_cli_execute_captura_stdout_y_files_changed(tmp_path):
     calls = {}
 
-    def fake_run(argv, *, cwd, stdin_text):
+    def fake_run(argv, *, cwd, stdin_text, env=None):
         calls["argv"] = argv
         calls["cwd"] = cwd
         calls["stdin"] = stdin_text
@@ -85,7 +85,7 @@ def test_cli_execute_captura_stdout_y_files_changed(tmp_path):
 
 
 def test_cli_execute_returncode_no_cero_es_fallo(tmp_path):
-    def fake_run(argv, *, cwd, stdin_text):
+    def fake_run(argv, *, cwd, stdin_text, env=None):
         return CmdResult(returncode=1, stdout="boom")
 
     ex = CliExecutor("codex exec -m {model}", run_cmd=fake_run,
@@ -94,3 +94,21 @@ def test_cli_execute_returncode_no_cero_es_fallo(tmp_path):
                      repo_root=tmp_path, role="builder", slug="demo")
     assert res.success is False
     assert "boom" in res.content
+
+
+def test_cli_execute_inyecta_env_al_subprocess(tmp_path):
+    seen = {}
+
+    def fake_run(argv, *, cwd, stdin_text, env=None):
+        seen["env"] = env
+        return CmdResult(returncode=0, stdout="ok")
+
+    ex = CliExecutor(
+        "aider --model openai/{model}",
+        env={"OPENAI_API_BASE": "http://localhost:4000", "OPENAI_API_KEY": "sk-local"},
+        run_cmd=fake_run, git_changed=lambda r: [],
+    )
+    ex.execute("P", model="deepseek-coder",
+               repo_root=tmp_path, role="builder", slug="demo")
+    assert seen["env"]["OPENAI_API_BASE"] == "http://localhost:4000"
+    assert seen["env"]["OPENAI_API_KEY"] == "sk-local"

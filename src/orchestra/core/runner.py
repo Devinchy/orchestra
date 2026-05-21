@@ -50,12 +50,20 @@ def _select_executor(
     api_key: str,
     invoke_fn: InvokeFn,
 ) -> Executor:
-    """Elige el executor: builder con backend CLI configurado → CliExecutor; resto → Proxy."""
+    """Elige el executor: builder con backend CLI configurado → CliExecutor; resto → Proxy.
+
+    Backends `via_proxy` (ej. aider con modelos open) reciben env apuntando al proxy
+    litellm, para hablar con él como si fuera OpenAI — sin keys propias del proveedor.
+    """
     if role == "builder":
         backend_name = config.executors.builder_backend.get(provider)
         if backend_name:
             backend = config.executors.backends[backend_name]
-            return CliExecutor(backend.command_template)
+            env = (
+                {"OPENAI_API_BASE": proxy_url, "OPENAI_API_KEY": api_key}
+                if backend.via_proxy else None
+            )
+            return CliExecutor(backend.command_template, env=env)
     return ProxyExecutor(proxy_url=proxy_url, api_key=api_key, invoke_fn=invoke_fn)
 
 

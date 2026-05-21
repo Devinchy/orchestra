@@ -146,10 +146,29 @@ def test_select_executor_planner_es_proxy():
     assert isinstance(ex, ProxyExecutor)
 
 
-def test_select_executor_builder_sin_backend_cae_a_proxy():
-    # qwen no tiene builder_backend configurado (día 7) → builder cae a proxy.
+def test_select_executor_builder_deepseek_es_cli_via_proxy():
+    # deepseek -> aider (via_proxy): CliExecutor con env apuntando al proxy.
     ex = runner._select_executor(
-        _config(), "builder", "qwen",
+        _config(), "builder", "deepseek",
+        proxy_url="http://localhost:4000", api_key="sk-local",
+        invoke_fn=lambda *a, **k: None,
+    )
+    assert isinstance(ex, CliExecutor)
+    assert "aider" in ex.command_template
+    assert ex.env["OPENAI_API_BASE"] == "http://localhost:4000"
+    assert ex.env["OPENAI_API_KEY"] == "sk-local"
+
+
+def test_select_executor_builder_sin_backend_cae_a_proxy():
+    # Config con builder_backend vacío → el builder cae a ejecución documental.
+    from orchestra.core.config import ExecutorConfig, OrchestraConfig
+    base = _config()
+    cfg_sin_backend = OrchestraConfig(
+        providers=base.providers, roles=base.roles, routing=base.routing,
+        executors=ExecutorConfig(),  # vacío
+    )
+    ex = runner._select_executor(
+        cfg_sin_backend, "builder", "codex",
         proxy_url="http://x", api_key="k", invoke_fn=lambda *a, **k: None,
     )
     assert isinstance(ex, ProxyExecutor)

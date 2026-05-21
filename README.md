@@ -68,9 +68,9 @@ sensibles (`core/pii.py`, mismos que el `auto-label-sensitive` de dev-config).
 no ve PII en strict), o `"self_hosted"` (open-weights local como Qwen/Ollama →
 permitido para PII por la política).
 
-## Estado: días 1–6 completados
+## Estado: días 1–7 completados
 
-Construido **test-first** (la propia filosofía que orquesta). **100 tests verdes.**
+Construido **test-first** (la propia filosofía que orquesta). **106 tests verdes.**
 
 **Día 1 — lógica de decisión (solo stdlib):**
 - ✅ Scaffold: `pyproject.toml`, `justfile`, `.gitignore`, `.env.example`.
@@ -138,17 +138,28 @@ el ciclo. El hand-off entre roles es file-based (`task_`/`builder_`/`acceptance_
 |---|---|---|
 | planner | ProxyExecutor (proxy → texto) | No, produce el task file |
 | tester | ProxyExecutor + re-ejecuta tests reales | No, solo lee + corre tests |
-| **builder** | **CliExecutor** → `claude -p` / `codex exec` (aider para open, día 7) | **Sí** |
+| **builder** | **CliExecutor** → CLI agéntico según proveedor | **Sí** |
 
 El gate PII se aplica **antes** de elegir backend: la PII nunca llega a un CLI de un
-proveedor sin DPA. Si un proveedor no tiene backend configurado (qwen/deepseek/gemini
-hoy), el builder cae a ejecución documental hasta que se añada (día 7, vía aider).
+proveedor sin DPA.
 
 > **Verificación pendiente en tu entorno**: claude/codex/aider no están instalados
 > aquí, así que la ejecución real está testeada con `subprocess` mockeado. En tu
 > máquina, con los CLIs instalados y el proxy levantado, `orchestra cycle` ejecuta
 > de verdad. El comando por backend es configurable en `executors.toml` (como el
 > `CODEX_CMD` ajustable de dev-config).
+
+**Día 7 — los 5 proveedores + override de tests:**
+- ✅ Backend `aider` (`via_proxy`) para deepseek/qwen/gemini — el builder ya cubre **los 5 proveedores**. orchestra inyecta `OPENAI_API_BASE/KEY` del proxy al subprocess de aider; no hay secretos en el argv. **+1 test env + selección.**
+- ✅ Override del comando de tests vía `orchestra.toml` del repo (`[tests] command`), con precedencia override > orchestra.toml > autodetección. **+4 tests.**
+
+Builder por proveedor (verificado):
+
+| Proveedor | Backend | Credenciales |
+|---|---|---|
+| claude | `claude -p ...` | key propia (ANTHROPIC_API_KEY) |
+| codex | `codex exec ...` | key propia (OPENAI_API_KEY) |
+| deepseek / qwen / gemini | `aider --model openai/{model} ...` | proxy litellm (OPENAI_API_BASE) |
 
 ### Cómo correr los tests
 
@@ -165,17 +176,17 @@ just proxy                  # litellm --config litellm.yaml --port 4000
 # verifica:  curl http://localhost:4000/health
 ```
 
-## Lo que viene (día 7+)
+## Lo que viene (día 8+)
 
 | Hito | Entrega |
 |---|---|
-| 7 | Backend `aider` para builder con deepseek/qwen/gemini (apuntado al proxy). Autodetección de tests con override por `orchestra.toml` del repo. Verificación real con claude/codex instalados. |
-| 8 | Fallback en runtime por caída/rate-limit (`next_fallback` ya existe, falta cablearlo con reintento). Pulido del CLI (`config show/set`). |
+| 8 | Fallback en runtime por caída/rate-limit (`next_fallback` ya existe, falta cablearlo en el invoker/CliExecutor con reintento). Pulido del CLI (`config show/set`). |
+| — | **Verificación real**: levantar el proxy con keys reales y correr un `orchestra cycle` end-to-end con claude/codex/aider instalados (fuera del alcance de este entorno). |
 
-> El sistema completo ya funciona end-to-end: 3 roles, rotación de modelos por rol,
-> gate PII enforced, routing del veredicto, y **ejecución real delegada a CLIs
-> agénticos** para el builder. Falta cubrir los proveedores open (aider) y endurecer
-> el runtime (fallback, verificación con CLIs reales).
+> El sistema completo funciona end-to-end: 3 roles, rotación de modelos por rol entre
+> los **5 proveedores**, gate PII enforced, routing del veredicto, y **ejecución real
+> delegada a CLIs agénticos** para el builder. Lo que falta es endurecer el runtime
+> (fallback automático) y la verificación contra proveedores reales.
 
 ## Requisitos
 

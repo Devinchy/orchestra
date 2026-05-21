@@ -69,6 +69,10 @@ class RoutingConfig:
 class BackendSpec:
     name: str
     command_template: str
+    # Si True, el backend NO tiene credenciales propias y se enruta por el proxy
+    # litellm (orchestra le inyecta OPENAI_API_BASE/KEY del proxy). Ej: aider con
+    # modelos open. claude_code/codex_cli usan sus propias keys → via_proxy=False.
+    via_proxy: bool = False
 
 
 @dataclass(frozen=True)
@@ -151,7 +155,11 @@ def _parse_executors(raw: dict) -> ExecutorConfig:
     backends: dict[str, BackendSpec] = {}
     for name, spec in raw.get("backends", {}).items():
         try:
-            backends[name] = BackendSpec(name=name, command_template=spec["command"])
+            backends[name] = BackendSpec(
+                name=name,
+                command_template=spec["command"],
+                via_proxy=bool(spec.get("via_proxy", False)),
+            )
         except KeyError as e:
             raise ConfigError(f"backend '{name}': falta el campo {e}") from e
     return ExecutorConfig(

@@ -7,6 +7,7 @@ ejecución real (claude/codex de verdad) la verifica el usuario en su entorno.
 """
 from __future__ import annotations
 
+import os
 import shlex
 import subprocess
 import tempfile
@@ -16,10 +17,13 @@ from typing import Callable
 from orchestra.core.executors.base import CmdResult, ExecutionResult
 
 
-def _default_run(argv: list[str], *, cwd: Path, stdin_text: str | None) -> CmdResult:
+def _default_run(
+    argv: list[str], *, cwd: Path, stdin_text: str | None, env: dict | None = None
+) -> CmdResult:
+    full_env = {**os.environ, **env} if env else None
     proc = subprocess.run(
         argv, cwd=str(cwd), input=stdin_text,
-        capture_output=True, text=True,
+        capture_output=True, text=True, env=full_env,
     )
     return CmdResult(returncode=proc.returncode, stdout=(proc.stdout or "") + (proc.stderr or ""))
 
@@ -48,10 +52,12 @@ class CliExecutor:
         self,
         command_template: str,
         *,
+        env: dict | None = None,
         run_cmd: RunCmd = _default_run,
         git_changed: GitChanged = _default_git_changed,
     ) -> None:
         self.command_template = command_template
+        self.env = env or {}
         self._run = run_cmd
         self._git_changed = git_changed
 
@@ -98,7 +104,7 @@ class CliExecutor:
         slug: str,
     ) -> ExecutionResult:
         argv, stdin_text, _ = self.build_command(model, prompt)
-        result = self._run(argv, cwd=repo_root, stdin_text=stdin_text)
+        result = self._run(argv, cwd=repo_root, stdin_text=stdin_text, env=self.env or None)
         files = self._git_changed(repo_root)
         return ExecutionResult(
             content=result.stdout,

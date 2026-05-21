@@ -7,6 +7,7 @@ comando según el repo, con override explícito. subprocess inyectable.
 from __future__ import annotations
 
 import shlex
+import tomllib
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Callable
@@ -37,6 +38,19 @@ def detect_test_command(repo_root: Path) -> str | None:
     return None
 
 
+def read_repo_test_command(repo_root: Path) -> str | None:
+    """Lee el override del comando de tests de orchestra.toml ([tests] command)."""
+    path = Path(repo_root) / "orchestra.toml"
+    if not path.exists():
+        return None
+    try:
+        with path.open("rb") as fh:
+            data = tomllib.load(fh)
+    except (OSError, tomllib.TOMLDecodeError):
+        return None
+    return data.get("tests", {}).get("command")
+
+
 def run_tests(
     repo_root: Path,
     *,
@@ -45,7 +59,8 @@ def run_tests(
 ) -> TestRun:
     """Ejecuta el comando de tests (override o autodetectado) en el repo."""
     repo_root = Path(repo_root)
-    cmd = command or detect_test_command(repo_root)
+    # Precedencia: override explícito > orchestra.toml del repo > autodetección.
+    cmd = command or read_repo_test_command(repo_root) or detect_test_command(repo_root)
     if cmd is None:
         return TestRun(command=None, output="", success=None)
 
