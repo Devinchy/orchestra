@@ -3,6 +3,7 @@
 __pycache__/
 *.pyc
 .python-version
+.pytest_cache/
 
 # Secretos y config local
 .env
