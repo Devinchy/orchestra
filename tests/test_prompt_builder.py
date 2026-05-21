@@ -44,7 +44,17 @@ def test_incluye_contrato_del_rol(tmp_path):
     prompt = pb.build_prompt(_config(), "builder", "demo",
                              repo_root=repo, orchestra_root=ORCHESTRA_ROOT)
     assert "Rol: builder" in prompt
-    assert "UN ÚNICO INTENTO" in prompt   # del builder.md real
+    assert "ciclo TDD completo" in prompt   # del builder.md real
+
+
+def test_planner_no_requiere_task_file(tmp_path):
+    # El planner PRODUCE la tarea: build_prompt no debe exigir task_<slug>.md.
+    (tmp_path / "progress").mkdir()
+    (tmp_path / "PHASE_PLAN.md").write_text("# Roadmap\nFase 1: bootstrap.", encoding="utf-8")
+    prompt = pb.build_prompt(_config(), "planner", "nueva",
+                             repo_root=tmp_path, orchestra_root=ORCHESTRA_ROOT)
+    assert "Rol: planner" in prompt
+    assert "Fase 1: bootstrap" in prompt    # inyecta PHASE_PLAN para el planner
 
 
 def test_incluye_rules(tmp_path):

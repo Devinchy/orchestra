@@ -67,10 +67,11 @@ def build_prompt(
         orchestra_root = Path(__file__).resolve().parents[3]
     orchestra_root = Path(orchestra_root)
 
-    # Artefacto obligatorio: la tarea.
+    # El planner PRODUCE la tarea; builder/tester la CONSUMEN.
+    produces_task = role_name == "planner"
     task_path = repo_root / "progress" / f"task_{slug}.md"
     task_body = _read(task_path)
-    if task_body is None:
+    if task_body is None and not produces_task:
         raise PromptError(f"no existe el task file obligatorio: {task_path}")
 
     parts: list[str] = [
@@ -106,16 +107,29 @@ def build_prompt(
         if body is not None:
             parts.append(_section(title, body))
 
-    # La tarea (obligatoria) + artefactos del ciclo (opcionales).
-    parts.append(_section(f"TAREA — task_{slug}", task_body))
-    for title, rel in [
-        (f"TESTS — tests_{slug}", f"progress/tests_{slug}.md"),
-        (f"BUILDER — builder_{slug}", f"progress/builder_{slug}.md"),
-        (f"ACEPTACIÓN PREVIA — acceptance_{slug}", f"progress/acceptance_{slug}.md"),
-    ]:
-        body = _read(repo_root / rel)
-        if body is not None:
-            parts.append(_section(title, body))
+    if produces_task:
+        # El planner lee la documentación de planificación y PRODUCE la tarea.
+        for title, rel in [
+            ("ROADMAP — PHASE_PLAN", "PHASE_PLAN.md"),
+            ("FASE ACTIVA — active-phase", "context/active-phase.md"),
+        ]:
+            body = _read(repo_root / rel)
+            if body is not None:
+                parts.append(_section(title, body))
+        # Si ya hay un task file (re-planteo tras BLOCKED), lo incluye como referencia.
+        if task_body is not None:
+            parts.append(_section(f"TAREA PREVIA — task_{slug}", task_body))
+    else:
+        # builder/tester: la tarea (obligatoria) + artefactos del ciclo (opcionales).
+        parts.append(_section(f"TAREA — task_{slug}", task_body))
+        for title, rel in [
+            (f"TESTS — tests_{slug}", f"progress/tests_{slug}.md"),
+            (f"BUILDER — builder_{slug}", f"progress/builder_{slug}.md"),
+            (f"ACEPTACIÓN PREVIA — acceptance_{slug}", f"progress/acceptance_{slug}.md"),
+        ]:
+            body = _read(repo_root / rel)
+            if body is not None:
+                parts.append(_section(title, body))
 
     parts.append(f"\n\n---\n\nEjecuta ahora la tarea como rol '{role_name}'.")
     return "".join(parts)

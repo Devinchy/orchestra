@@ -14,6 +14,7 @@ from pathlib import Path
 import click
 
 from orchestra.core import config as cfg
+from orchestra.core import cycle as cycle_core
 from orchestra.core import runner
 
 # Raíz de la instalación de orchestra (src/orchestra/cli.py → parents[2]).
@@ -64,6 +65,50 @@ def run(role: str, slug: str, provider: str | None, model: str | None) -> None:
         click.echo(f"  paths PII:  {', '.join(result.pii_paths)}")
     click.echo(f"  transcript: {result.transcript_path}")
     click.echo("─" * 50)
+
+
+@main.command(name="cycle")
+@click.option("--slug", required=True, help="Slug de la tarea.")
+@click.option("--planner", default=None, help="Proveedor para el rol planner.")
+@click.option("--builder", default=None, help="Proveedor para el rol builder.")
+@click.option("--tester", default=None, help="Proveedor para el rol tester.")
+@click.option("--all", "all_provider", default=None,
+              help="Mismo proveedor para los 3 roles (atajo).")
+@click.option("--max-iters", default=3, show_default=True, help="Tope de vueltas builder->tester.")
+def cycle_cmd(slug, planner, builder, tester, all_provider, max_iters) -> None:
+    """Ejecuta el ciclo completo planner -> builder -> tester con routing del veredicto."""
+    proxy_url = os.environ.get("LITELLM_PROXY_URL", DEFAULT_PROXY_URL)
+    api_key = os.environ.get("LITELLM_MASTER_KEY", DEFAULT_MASTER_KEY)
+
+    if all_provider:
+        overrides = {"planner": all_provider, "builder": all_provider, "tester": all_provider}
+    else:
+        overrides = {r: p for r, p in
+                     [("planner", planner), ("builder", builder), ("tester", tester)]
+                     if p is not None}
+
+    try:
+        config = cfg.load_config(CONFIG_DIR)
+        result = cycle_core.run_cycle(
+            config, slug,
+            repo_root=Path.cwd(), orchestra_root=ORCHESTRA_ROOT,
+            proxy_url=proxy_url, api_key=api_key,
+            provider_overrides=overrides, max_iters=max_iters,
+        )
+    except Exception as e:  # noqa: BLE001
+        raise click.ClickException(str(e)) from e
+
+    click.echo("=" * 50)
+    click.echo(f"  CICLO {slug}")
+    for i, step in enumerate(result.history, 1):
+        click.echo(f"  {i}. {step.role:8} {step.provider}/{step.model}")
+    click.echo("-" * 50)
+    click.echo(f"  veredicto final: {result.final_status}")
+    click.echo(f"  iteraciones:     {result.iterations}")
+    click.echo(f"  parada:          {result.stopped_reason}")
+    click.echo("=" * 50)
+    if result.final_status != "PASS":
+        raise SystemExit(1)
 
 
 @main.command()

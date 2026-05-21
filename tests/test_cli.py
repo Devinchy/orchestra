@@ -8,6 +8,7 @@ from pathlib import Path
 from click.testing import CliRunner
 
 from orchestra import cli
+from orchestra.core.cycle import CycleResult
 from orchestra.core.runner import RunResult
 
 
@@ -76,3 +77,43 @@ def test_status_sin_tarea_activa(tmp_path, monkeypatch):
     res = CliRunner().invoke(cli.main, ["status"])
     assert res.exit_code == 0
     assert "ninguna" in res.output.lower()
+
+
+# ---------- cycle ----------
+
+def test_cycle_all_aplica_mismo_provider_a_los_tres(monkeypatch):
+    captured = {}
+
+    def fake_run_cycle(config, slug, **kw):
+        captured["overrides"] = kw.get("provider_overrides")
+        return CycleResult("PASS", None, 1, "pass", history=[])
+
+    monkeypatch.setattr(cli.cycle_core, "run_cycle", fake_run_cycle)
+    res = CliRunner().invoke(cli.main, ["cycle", "--slug", "demo", "--all", "codex"])
+    assert res.exit_code == 0, res.output
+    assert captured["overrides"] == {"planner": "codex", "builder": "codex", "tester": "codex"}
+
+
+def test_cycle_overrides_por_rol(monkeypatch):
+    captured = {}
+
+    def fake_run_cycle(config, slug, **kw):
+        captured["overrides"] = kw.get("provider_overrides")
+        return CycleResult("PASS", None, 1, "pass", history=[])
+
+    monkeypatch.setattr(cli.cycle_core, "run_cycle", fake_run_cycle)
+    res = CliRunner().invoke(
+        cli.main,
+        ["cycle", "--slug", "demo", "--planner", "codex", "--builder", "claude"],
+    )
+    assert res.exit_code == 0, res.output
+    assert captured["overrides"] == {"planner": "codex", "builder": "claude"}
+
+
+def test_cycle_exit_1_si_no_pasa(monkeypatch):
+    monkeypatch.setattr(
+        cli.cycle_core, "run_cycle",
+        lambda *a, **k: CycleResult("FAIL", "builder", 3, "max_iters", history=[]),
+    )
+    res = CliRunner().invoke(cli.main, ["cycle", "--slug", "demo"])
+    assert res.exit_code == 1
